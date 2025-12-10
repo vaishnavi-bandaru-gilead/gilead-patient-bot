@@ -1,0 +1,29 @@
+:root {
+    /* BRAND COLORS */
+    --gilead-primary: #C50F3C;     /* Primary Red */
+    --gilead-primary-alt: #C5203F; /* Header Color */
+    --gilead-secondary: #3C587F;   /* Twilight Sky */
+    --gilead-bg: #F4F4F4;          /* Background */
+    --gilead-header-text: #FFFFFF; /* Header Text */
+    --border-color: #c6cac6;
+
+    /* TYPOGRAPHY */
+    --chat-font-family: "Open Sans", sans-serif;
+
+    --agent-font-size: 17px;
+    --user-font-size: 17px;
+
+    /* MESSAGE COLORS */
+    --agent-bubble-bg: #FFFFFF;
+    --agent-bubble-text: #1E1E1E;
+
+    --user-bubble-bg: #3C587F;
+    --user-bubble-text: #FFFFFF;
+
+    /* GLOBAL SPACING & RADIUS */
+    --chat-radius: 16px;
+    --bubble-radius: 12px;
+
+    /* SHADOWS */
+    --bubble-shadow: 0 3px 8px rgba(0,0,0,0.15);
+}

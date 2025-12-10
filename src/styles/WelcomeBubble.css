@@ -1,0 +1,91 @@
+.welcome-bubble {
+    position: fixed;
+    bottom: 170px;          /* height of bubble above icon */
+    right: 20px;            /* aligned with icon */
+    background: white;
+    padding: 16px 20px;
+    width: 300px;
+    border-radius: 12px;
+    box-shadow: 0 5px 10px rgba(0, 0, 0, 0.2);
+    opacity: 0;
+    transform: translateY(10px);
+    transition: all 0.35s ease;
+    z-index: 1200;
+    pointer-events: none;
+    border: 2px solid #c6cac6;
+    cursor: pointer;
+}
+
+.welcome-bubble.show {
+    opacity: 1;
+    transform: translateY(0);
+    pointer-events: auto;
+}
+
+.welcome-close {
+    position: absolute;
+    top: -35px;
+    right: 2px;
+
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    border: 3px solid white;
+    background: white;
+    cursor: pointer;
+    padding: 5px;
+    box-shadow: 0 5px 10px rgba(0, 0, 0, 0.2);
+
+    display: flex;
+    justify-content: center;
+    align-items: center;
+
+    /*opacity: 0;*/
+    transform: scale(0.8);
+    transition: opacity 0.35s ease, transform 0.15s ease;
+}
+
+/* Red X lines */
+.welcome-close::before,
+.welcome-close::after {
+    content: "";
+    position: absolute;
+    width: 15px;
+    height: 1px;                /* thickness */
+    background-color: #e53935;  /* red */
+}
+
+.welcome-close::before {
+    transform: rotate(45deg);
+}
+
+.welcome-close::after {
+    transform: rotate(-45deg);
+}
+
+/* When visible */
+.welcome-wrapper.show .welcome-close {
+    opacity: 1;
+    transform: scale(1);
+}
+
+/* Hover */
+.welcome-close:hover {
+    transform: scale(1.0);
+    border: 2px solid #c6cac6;
+}
+
+
+.welcome-close:hover {
+    transform: translate(2px, 2px) scale(1.0); /* <-- moves down-right */
+    box-shadow: 0 6px 14px rgba(0,0,0,0);
+}
+
+
+.welcome-bubble p {
+    margin: 0;
+    font-size: 14px;
+    color: black;
+    line-height: 1.4;
+    padding-right: 18px;
+}
