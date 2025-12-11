@@ -34,24 +34,6 @@ const App: React.FC = () => {
 
             {open && <ChatWindow onClose={() => setOpen(false)} />}
         </>
-        // <>
-        //     {/* Welcome Bubble */}
-        //     <WelcomeBubble
-        //         visible={showBubble && !open}
-        //         onClose={() => setShowBubble(false)}
-        //     />
-        //
-        //     {/* Chat Window */}
-        //     {open && <ChatWindow onClose={() => setOpen(false)} />}
-        //
-        //     {/* Chat Icon */}
-        //     <ChatIcon
-        //         onClick={() => {
-        //             setOpen(!open);
-        //             setShowBubble(false);  // bubble hides once chat is opened
-        //         }}
-        //     />
-        // </>
     );
 };
 
