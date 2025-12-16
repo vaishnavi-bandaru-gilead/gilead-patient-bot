@@ -1,0 +1,96 @@
+.msg-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 3px;
+    margin-bottom: 16px;
+}
+
+.msg-avatar {
+    width: 36px;
+    border-radius: 50%;
+}
+
+.msg-bubble {
+    background: white;
+    padding: 10px;
+    margin-left: 8px;
+    font-size: 15px;
+    border-radius: 0px 12px 12px 12px;
+    box-shadow: rgba(0, 0, 0, 0.2) 0 4px 10px 0;
+    margin-bottom: 12px;
+    font-family: "Open Sans", sans-serif;
+}
+
+.bot-bubble {
+    display: inline-block;
+    margin-inline-start: 5px;
+    background-color: white;
+    color: black;
+    font-size: 15px;
+    border-top-left-radius: 2px;
+    /*font-family: "Open Sans", sans-serif;*/
+    font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+    border: 1px solid #dedede;
+    border-start-start-radius: 0;
+    border-start-end-radius: 10px;
+    border-end-start-radius: 10px;
+    border-end-end-radius: 10px;
+}
+
+.user-bubble {
+    background-color: #c5203f;
+    color: white;
+    text-align: start;
+    border-start-start-radius: 10px;
+    border-start-end-radius: 0;
+    border-end-start-radius: 10px;
+    border-end-end-radius: 10px;
+    /*font-family: "Open Sans", sans-serif;*/
+    font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+    font-size: 15px;
+    width: fit-content;
+    max-width: 100%;
+    margin-left: auto;
+    word-wrap: break-word;
+    padding: 5px 14px 1px 14px;
+    box-shadow: rgba(0, 0, 0, 0.2) 0 4px 10px 0;
+}
+
+.msg-bubble p {
+    margin: 0 0 8px 0;
+}
+
+.msg-bubble p:last-child {
+    margin-bottom: 0;
+}
+
+.msg-bubble ul,
+.msg-bubble ol {
+    margin: 5px 0 5px 20px;
+    padding: 0;
+}
+
+.msg-bubble li {
+    margin-bottom: 4px;
+}
+
+.user-bubble a {
+    color: white;
+    text-decoration: underline;
+}
+
+.bot-bubble a {
+    color: #00539B;
+    font-weight: bold;
+    text-decoration: none;
+}
+
+.bot-bubble a:hover {
+    text-decoration: underline;
+}
+
+.msg-time {
+    font-size: 12px;
+    color: rgba(100, 91, 91, 0.78);
+    margin-top: 12px;
+}
