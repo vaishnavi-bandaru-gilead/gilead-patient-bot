@@ -1,314 +1,304 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import "../styles/ChatWindow.css";
-import doctorImg from "../assets/doctor.png";
 import gillianIntro from "../assets/gillian-intro.png";
 import gileadLogo from "../assets/gilead-logo.png";
-import ReactMarkdown from 'react-markdown';
 import MessageBubble from "../components/MessageBubble";
 
 interface ChatWindowProps {
     onClose: () => void;
 }
 
+type Sender = "user" | "bot" | "system";
+
 interface Message {
     id: string;
     text: string;
-    sender: 'user' | 'bot' | 'system';
+    sender: Sender;
     timestamp: Date;
 }
+
+type BackendMessage =
+    | string
+    | {
+    id?: string;
+    text?: string;
+    timestamp?: string | number;
+};
+
+const toMessageObjects = (items: unknown, sender: Sender): Message[] => {
+    if (!Array.isArray(items)) return [];
+
+    return (items as BackendMessage[])
+        .map((m) => {
+            if (typeof m === "string") {
+                return {
+                    id: crypto.randomUUID(),
+                    text: m,
+                    sender,
+                    timestamp: new Date(),
+                } satisfies Message;
+            }
+
+            const text = m?.text ?? "";
+            if (!text) return null;
+
+            const ts = m.timestamp ?? Date.now();
+            return {
+                id: m.id ?? crypto.randomUUID(),
+                text,
+                sender,
+                timestamp: new Date(ts),
+            } satisfies Message;
+        })
+        .filter(Boolean) as Message[];
+};
+
+
+const sessionStartedRef = useRef(false);
+
+useEffect(() => {
+    if (sessionStartedRef.current) return;
+    sessionStartedRef.current = true;
+
+    startSession();
+}, []);
+
+const startSession = async () => {
+    try {
+        const res = await fetch("http://localhost:3000/api/session/start", {
+            method: "POST",
+        });
+
+        if (!res.ok) {
+            throw new Error(`Session start failed (${res.status})`);
+        }
+
+        const data = await res.json();
+
+        setConversationId(data.conversationId);
+
+        setMessages(prev => [
+            ...prev,
+            ...data.messages.map((m: any) => ({
+                id: m.id ?? crypto.randomUUID(),
+                text: m.text,
+                sender: "bot",
+                timestamp: new Date(m.timestamp ?? Date.now())
+            }))
+        ]);
+    } catch (err) {
+        console.error("Session init error:", err);
+    }
+};
+
 
 const ChatWindow: React.FC<ChatWindowProps> = ({ onClose }) => {
     const [closing, setClosing] = useState(false);
     const [inputValue, setInputValue] = useState("");
+    const [conversationId, setConversationId] = useState<string | null>(null);
 
+    // ✅ Keep your original initial welcome message so UI never appears empty
     const [messages, setMessages] = useState<Message[]>([
         {
-            id: 'welcome-msg',
-            text: "Welcome. If you would like to report an adverse event at any time, you can visit Gilead's Adverse Event Reporting portal, or call 1‑800‑GILEAD‑5 (press option #3).\n\n**Please type your question below and include a Gilead drug name.**",            sender: 'bot',
-            timestamp: new Date()
+            id: "welcome-msg",
+            text:
+                "Welcome. If you would like to report an adverse event at any time, you can visit Gilead's Adverse Event Reporting portal, or call 1-800-GILEAD-5 (press option #3).\n\n**Please type your question below and include a Gilead drug name.**",
+            sender: "bot",
+            timestamp: new Date(),
         },
-        // {
-        //     id: 'sys-init',
-        //     text: "Here is **bold** text and a [link](https://gilead.com).",
-        //     sender: 'bot',
-        //     timestamp: new Date()
-        // },
-        // {
-        //     id: 'sys-1',
-        //     text: "Hello. I'm Gillian, your virtual help assistant. How can I help you today?",
-        //     sender: 'bot',
-        //     timestamp: new Date()
-        // }
     ]);
-    const [conversationId, setConversationId] = useState<string | null>(null);
-    const [token, setToken] = useState<string | null>(null);
-    const [watermark, setWatermark] = useState<number>(0);
+
     const chatBodyRef = useRef<HTMLDivElement>(null);
 
-    // Unique User ID
-    const userId = useRef(`user-${Date.now()}`).current;
-
-    //Initialize Chat
+    /* ---------------------------
+       START SESSION (ON MOUNT)
+       Uses relative URL to avoid CORS + support Vite proxy
+    ---------------------------- */
     useEffect(() => {
-        const initChat = async () => {
+        let cancelled = false;
+
+        const startSession = async () => {
             try {
-                // Get Token
-                const tokenRes = await fetch('/api/directline/token');
-                if (!tokenRes.ok) throw new Error("Backend connection failed");
-                const tokenData = await tokenRes.json();
-                setToken(tokenData.token);
+                const res = await fetch("/api/session/start", { method: "POST" });
+                if (!res.ok) throw new Error(`Session start failed (${res.status})`);
 
-                // Start Conversation
-                const startRes = await fetch(`https://a26b9f3d97e6e3f0840cb199d34fcf.0b.environment.api.powerplatform.com/powervirtualagents/botsbyschema/crc60_hcpBot/directline/conversations/${conversationId}/activities`, {
-                    method: 'POST',
-                    headers: { 'Authorization': `Bearer ${tokenData.token}` }
-                });
-                const startData = await startRes.json();
-                setConversationId(startData.conversationId);
+                const data: any = await res.json();
+                if (cancelled) return;
 
-            } catch (error) {
-                console.error("Init failed:", error);
-                setMessages(prev => [...prev, {
-                    id: 'sys-init',
-                    text: "⚠️ Service unavailable. Please check your connection.",
-                    sender: 'system',
-                    timestamp: new Date()
-                }]);
-            }
-        };
-        initChat();
-    }, []);
+                if (!data?.conversationId) {
+                    throw new Error("Missing conversationId in /api/session/start response");
+                }
+                setConversationId(data.conversationId);
 
-    //Polling for new messages
-    // useEffect(() => {
-    //     if (!conversationId || !token) return;
-    //
-    //     const intervalId = setInterval(async () => {
-    //         try {
-    //             const res = await fetch(
-    //                 `https://a26b9f3d97e6e3f0840cb199d34fcf.0b.environment.api.powerplatform.com/powervirtualagents/botsbyschema/crc60_hcpBot/directline/token?api-version=2022-03-01-preview/conversations/${conversationId}/activities?watermark=${watermark}`,
-    //                 { headers: { 'Authorization': `Bearer ${token}` } }
-    //             );
-    //             const data = await res.json();
-    //
-    //             if (data.watermark) setWatermark(data.watermark);
-    //
-    //             if (data.activities && data.activities.length > 0) {
-    //                 const newMessages: Message[] = [];
-    //                 data.activities.forEach((activity: any) => {
-    //                     if (activity.from.id !== userId && activity.type === 'message') {
-    //                         newMessages.push({
-    //                             id: activity.id,
-    //                             text: activity.text,
-    //                             sender: 'bot',
-    //                             timestamp: new Date(activity.timestamp || Date.now())
-    //                         });
-    //                     }
-    //                 });
-    //                 if (newMessages.length > 0) {
-    //                     setMessages(prev => [...prev, ...newMessages]);
-    //                 }
-    //             }
-    //         } catch (error) {
-    //             console.error("Polling error:", error);
-    //         }
-    //     }, 3000);
-    //
-    //     return () => clearInterval(intervalId);
-    // }, [conversationId, token, watermark]);
+                const initialBotMessages = toMessageObjects(data.messages, "bot");
 
-
-
-    //Polling for new messages
-    useEffect(() => {
-        if (!conversationId || !token) return;
-
-        const intervalId = setInterval(async () => {
-            try {
-                const pollUrl =
-                    `https://a26b9f3d97e6e3f0840cb199d34fcf.0b.environment.api.powerplatform.com/powervirtualagents/botsbyschema/crc60_hcpBot/directline/conversations/${conversationId}/activities?watermark=${watermark}`;
-
-                const res = await fetch(pollUrl, {
-                    headers: { "Authorization": `Bearer ${token}` }
-                });
-
-                const data = await res.json();
-
-                if (data.watermark) setWatermark(data.watermark);
-
-                if (data.activities?.length) {
-                    const newMessages = data.activities
-                        .filter((activity: any) =>
-                            activity.type === "message" &&
-                            activity.from?.id !== userId &&
-                            activity.text
-                        )
-                        .map((activity: any) => ({
-                            id: activity.id,
-                            text: activity.text,
-                            sender: "bot",
-                            timestamp: new Date(activity.timestamp)
-                        }));
-
-                    if (newMessages.length > 0) {
-                        setMessages(prev => [...prev, ...newMessages]);
-                    }
+                // ✅ Append (do not replace) so welcome message stays
+                if (initialBotMessages.length > 0) {
+                    setMessages((prev) => [...prev, ...initialBotMessages]);
                 }
             } catch (error) {
-                console.error("Polling error:", error);
+                console.error("Session init error:", error);
+                if (cancelled) return;
+
+                setMessages((prev) => [
+                    ...prev,
+                    {
+                        id: crypto.randomUUID(),
+                        text: "⚠️ Unable to connect right now. Please try again in a moment.",
+                        sender: "system",
+                        timestamp: new Date(),
+                    },
+                ]);
             }
-        }, 1500);
+        };
 
-        return () => clearInterval(intervalId);
-    }, [conversationId, token, watermark]);
+        startSession();
 
+        return () => {
+            cancelled = true;
+        };
+    }, []);
 
-    //Auto-scroll
+    /* ---------------------------
+       AUTO SCROLL
+    ---------------------------- */
     useEffect(() => {
         if (chatBodyRef.current) {
             chatBodyRef.current.scrollTop = chatBodyRef.current.scrollHeight;
         }
     }, [messages]);
 
-    const handleClose = () => {
-        setClosing(true);
-        setTimeout(() => onClose(), 300);
-    };
+    useEffect(() => {
+        fetch("http://localhost:3000/api/health")
+            .then(res => res.json())
+            .then(data => console.log("Backend health:", data))
+            .catch(err => console.error("Backend error:", err));
+    }, []);
 
+
+    /* ---------------------------
+       SEND MESSAGE
+       Uses /api/session/send and appends bot replies
+    ---------------------------- */
     const handleSend = async () => {
-        if (!inputValue.trim()) return;
+        const trimmed = inputValue.trim();
+        if (!trimmed) return;
 
-        const textToSend = inputValue;
+        const userMsg: Message = {
+            id: crypto.randomUUID(),
+            text: trimmed,
+            sender: "user",
+            timestamp: new Date(),
+        };
+
+        // ✅ Render user message immediately (same behavior as before)
+        setMessages((prev) => [...prev, userMsg]);
         setInputValue("");
 
-        setMessages(prev => [...prev, {
-            id: Date.now().toString(),
-            text: textToSend,
-            sender: 'user',
-            timestamp: new Date()
-        }]);
-
-        if (!conversationId || !token) {
-            // If not connected, show a system message AFTER the user's message
-            setTimeout(() => {
-                setMessages(prev => [...prev, {
-                    id: 'sys-' + Date.now(),
-                    text: "⚠️ Connecting to server... please wait.",
-                    sender: 'system',
-                    timestamp: new Date()
-                }]);
-            }, 500);
+        if (!conversationId) {
+            setMessages((prev) => [
+                ...prev,
+                {
+                    id: crypto.randomUUID(),
+                    text: "⚠️ Still connecting… please try again in a moment.",
+                    sender: "system",
+                    timestamp: new Date(),
+                },
+            ]);
             return;
         }
 
         try {
-            // await fetch(`https://a26b9f3d97e6e3f0840cb199d34fcf.0b.environment.api.powerplatform.com/powervirtualagents/botsbyschema/crc60_hcpBot/directline/conversations/${conversationId}/activities`, {
-            //     method: 'POST',
-            //     headers: {
-            //         'Authorization': `Bearer ${token}`,
-            //         'Content-Type': 'application/json'
-            //     },
-            //     body: JSON.stringify({
-            //         type: 'message',
-            //         from: { id: userId },
-            //         text: textToSend
-            //     })
-            // });
-            await fetch(
-                `https://a26b9f3d97e6e3f0840cb199d34fcf.0b.environment.api.powerplatform.com/powervirtualagents/botsbyschema/crc60_hcpBot/directline/conversations/${conversationId}/activities`,
-                {
-                    method: "POST",
-                    headers: {
-                        "Authorization": `Bearer ${token}`,
-                        "Content-Type": "application/json"
-                    },
-                    body: JSON.stringify({
-                        type: "message",
-                        from: { id: userId },
-                        text: textToSend
-                    })
-                }
-            );
+            const res = await fetch("/api/session/send", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ conversationId, text: trimmed }),
+            });
 
+            if (!res.ok) throw new Error(`Send failed (${res.status})`);
 
+            const data: any = await res.json();
+            const botMsgs = toMessageObjects(data.messages, "bot");
+
+            if (botMsgs.length > 0) {
+                setMessages((prev) => [...prev, ...botMsgs]);
+            }
         } catch (error) {
-            console.error("Send failed:", error);
-            setMessages(prev => [...prev, {
-                id: 'err-' + Date.now(),
-                text: "❌ Failed to send message.",
-                sender: 'system',
-                timestamp: new Date()
-            }]);
+            console.error("Send error:", error);
+            setMessages((prev) => [
+                ...prev,
+                {
+                    id: crypto.randomUUID(),
+                    text: "❌ Failed to send message.",
+                    sender: "system",
+                    timestamp: new Date(),
+                },
+            ]);
         }
     };
 
+    const handleClose = () => {
+        setClosing(true);
+        setTimeout(onClose, 300);
+    };
 
     const hasText = inputValue.trim().length > 0;
 
     return (
-        <div className={`chat-container`}>
-        <div className={`chat-window-container ${closing ? "closing" : ""}`}>
-
-            {/* HEADER */}
-            <div className="chat-header">
-                <div className="chat-header-icons">
-                    <span className="header-icon-1">⤡</span>
-                    <button className="header-icon-btn" onClick={handleClose}>—</button>
-                </div>
-                <img src={gileadLogo} alt="Gilead logo" className="gilead-logo"/>
-                <div className="chat-header-icons">
+        <div className="chat-container">
+            <div className={`chat-window-container ${closing ? "closing" : ""}`}>
+                {/* HEADER */}
+                <div className="chat-header">
+                    <button className="header-icon-btn" onClick={handleClose}>
+                        —
+                    </button>
+                    <img src={gileadLogo} alt="Gilead logo" className="gilead-logo" />
                     <span className="header-icon menu">⋮</span>
                 </div>
-            </div>
 
-            {/* CHAT BODY */}
-            <div className="chat-body" ref={chatBodyRef}>
+                {/* BODY */}
+                <div className="chat-body" ref={chatBodyRef}>
+                    <div className="welcome-banner">
+                        <img src={gillianIntro} className="banner-avatar" alt="assistant" />
+                    </div>
 
-                {/* WELCOME BANNER */}
-                <div className="welcome-banner">
-                    <img src={gillianIntro} className="banner-avatar" alt="avatar"/>
+                    <hr className="divider" />
+
+                    {messages.map((msg) => (
+                        <MessageBubble
+                            key={msg.id}
+                            text={msg.text}
+                            sender={msg.sender}
+                            timestamp={msg.timestamp}
+                            isUser={msg.sender === "user"}
+                        />
+                    ))}
                 </div>
 
-                <hr className="divider"/>
-
-                {/* Dynamic Messages */}
-                {messages.map((msg) => (
-                    <MessageBubble
-                        key={msg.id}
-                        text={msg.text}
-                        sender={msg.sender}
-                        timestamp={msg.timestamp}
-                        isUser={msg.sender === "user"}
+                {/* INPUT */}
+                <div className="chat-input">
+                    <input
+                        type="text"
+                        placeholder="Type your question here"
+                        value={inputValue}
+                        onChange={(e) => setInputValue(e.target.value)}
+                        onKeyDown={(e) => e.key === "Enter" && handleSend()}
                     />
-                ))}
-            </div>
+                    <button
+                        className={`send-btn ${hasText ? "active" : ""}`}
+                        disabled={!hasText}
+                        onClick={handleSend}
+                    >
+                        ➣
+                    </button>
+                </div>
 
-            {/* INPUT BAR */}
-            <div className="chat-input">
-                <input
-                    id="chatInput"
-                    type="text"
-                    placeholder="Type your question here"
-                    value={inputValue}
-                    onChange={(e) => setInputValue(e.target.value)}
-                    onKeyDown={(e) => e.key === 'Enter' && handleSend()}
-                />
-                <button
-                    id="sendBtn"
-                    className={`send-btn ${hasText ? "active" : ""}`}
-                    disabled={!hasText}
-                    onClick={handleSend}
-                >
-                    ➣
-                </button>
+                {/* FOOTER */}
+                <div className="chat-footer">
+                    <span className="footer-caret">›</span>
+                    Privacy Statement
+                </div>
             </div>
-
-            {/* FOOTER */}
-            <div className="chat-footer">
-                <span className="footer-caret">›</span>
-                Privacy Statement
-            </div>
-        </div>
         </div>
     );
 };
