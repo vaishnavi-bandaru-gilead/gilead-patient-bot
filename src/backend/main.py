@@ -1,3 +1,4 @@
+import inspect
 import os
 import time
 from typing import List, Dict
@@ -10,7 +11,7 @@ from dotenv import load_dotenv
 from msal import ConfidentialClientApplication
 
 from microsoft_agents.activity import ActivityTypes
-from microsoft_agents.copilotstudio.client import ConnectionSettings, CopilotClient
+from microsoft_agents.copilotstudio.client import ConnectionSettings, CopilotClient, PowerPlatformCloud
 
 # ---------------------------------------------------------------------
 # Setup
@@ -27,6 +28,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+_copilot_client: CopilotClient | None = None
 # ---------------------------------------------------------------------
 # Config
 # ---------------------------------------------------------------------
@@ -49,11 +51,35 @@ if not all([AZURE_TENANT_ID, AZURE_CLIENT_ID, AZURE_CLIENT_SECRET,
 _token_cache = {"access_token": None, "expires_at": 0}
 
 
+# def get_access_token() -> str:
+#     now = int(time.time())
+#
+#     if _token_cache["access_token"] and now < (_token_cache["expires_at"] - 60):
+#         return _token_cache["access_token"]
+#
+#     authority = f"https://login.microsoftonline.com/{AZURE_TENANT_ID}"
+#
+#     cca = ConfidentialClientApplication(
+#         client_id=AZURE_CLIENT_ID,
+#         client_credential=AZURE_CLIENT_SECRET,
+#         authority=authority,
+#     )
+#
+#     result = cca.acquire_token_for_client(scopes=PP_SCOPE)
+#     print("Acquired new access token -------------", result)
+#
+#     if "access_token" not in result:
+#         raise RuntimeError(
+#             f"Token acquisition failed: {result.get('error')} - {result.get('error_description')}"
+#         )
+#
+#     _token_cache["access_token"] = result["access_token"]
+#     _token_cache["expires_at"] = now + int(result.get("expires_in", 3600))
+#
+#     return _token_cache["access_token"]
+
 def get_access_token() -> str:
     now = int(time.time())
-
-    if _token_cache["access_token"] and now < (_token_cache["expires_at"] - 60):
-        return _token_cache["access_token"]
 
     authority = f"https://login.microsoftonline.com/{AZURE_TENANT_ID}"
 
@@ -64,20 +90,24 @@ def get_access_token() -> str:
     )
 
     result = cca.acquire_token_for_client(scopes=PP_SCOPE)
-    print("Acquired new access token -------------", result)
+
+    print("MSAL RESULT:", result)
 
     if "access_token" not in result:
-        raise RuntimeError(
-            f"Token acquisition failed: {result.get('error')} - {result.get('error_description')}"
+        raise HTTPException(
+            status_code=500,
+            detail=result
         )
 
-    _token_cache["access_token"] = result["access_token"]
-    _token_cache["expires_at"] = now + int(result.get("expires_in", 3600))
-
-    return _token_cache["access_token"]
+    return result["access_token"]
 
 
 def create_copilot_client() -> CopilotClient:
+    global _copilot_client
+
+    if _copilot_client:
+        return _copilot_client
+
     token = get_access_token()
     settings = ConnectionSettings(
         environment_id=COPILOT_ENV_ID,
@@ -86,7 +116,16 @@ def create_copilot_client() -> CopilotClient:
         copilot_agent_type=None,
         custom_power_platform_cloud=None,
     )
-    return CopilotClient(settings, token)
+
+    _copilot_client = CopilotClient(settings, token)
+    print("Created new CopilotClient instance----------", _copilot_client)
+    return _copilot_client
+
+
+# --------------------------------------------------
+# In-memory session store (DEV SAFE)
+# --------------------------------------------------
+_sessions: Dict[str, Dict] = {}
 
 
 # ---------------------------------------------------------------------
@@ -112,11 +151,16 @@ class SendMessageResponse(BaseModel):
 
 @app.post("/api/session/start", response_model=StartSessionResponse)
 async def start_session():
+    if "default" in _sessions:
+        return _sessions["default"]
+
     client = create_copilot_client()
+    print(inspect.getsource(client.start_conversation))
+
     stream = client.start_conversation()
 
     conversation_id = None
-    messages = []
+    messages: List[Dict] = []
 
     async for act in stream:
         if not conversation_id and getattr(act, "conversation", None):
@@ -133,10 +177,13 @@ async def start_session():
     if not conversation_id:
         raise HTTPException(status_code=500, detail="Failed to obtain conversationId")
 
-    return {
+    response = {
         "conversationId": conversation_id,
         "messages": messages,
     }
+
+    _sessions["default"] = response
+    return response
 
 
 @app.post("/api/session/send", response_model=SendMessageResponse)
@@ -148,7 +195,7 @@ async def send_message(payload: SendMessageRequest):
     client = create_copilot_client()
     replies = client.ask_question(text, payload.conversationId)
 
-    out = []
+    out: List[Dict] = []
 
     async for act in replies:
         if act.type == ActivityTypes.message and act.text:
