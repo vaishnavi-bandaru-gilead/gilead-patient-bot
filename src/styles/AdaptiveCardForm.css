@@ -1,0 +1,88 @@
+/* container card */
+.adaptive-form-card {
+    background: #ffffff;
+    border-radius: 16px;
+    padding: 24px;
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.08);
+    max-width: 100%;
+    font-family: "Open Sans", Arial, sans-serif;
+}
+
+/* top paragraphs */
+.adaptive-form-card .afc-text {
+    margin: 0 0 12px;
+    font-size: 16px;
+    line-height: 1.4;
+    color: #1e1e1e;
+}
+
+/* markdown links (privacy statement) */
+.adaptive-form-card .afc-text a {
+    color: #3c587f;
+    text-decoration: underline;
+}
+
+/* each field block */
+.adaptive-form-card .afc-field {
+    margin-top: 18px;
+}
+
+/* label */
+.adaptive-form-card .afc-label {
+    display: block;
+    font-size: 15px;
+    color: #1e1e1e;
+    margin-bottom: 6px;
+}
+
+/* required star */
+.adaptive-form-card .afc-required {
+    color: #c5203f;
+    margin-left: 3px;
+}
+
+/* input */
+.adaptive-form-card .afc-input {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 10px 12px;
+    border-radius: 4px;
+    border: 1px solid #c4c4c4;
+    font-size: 16px;
+    font-family: inherit;
+}
+
+/* focused */
+.adaptive-form-card .afc-input:focus {
+    outline: none;
+    border-color: #3c587f;
+    box-shadow: 0 0 0 2px rgba(60, 88, 127, 0.15);
+}
+
+/* error state */
+.adaptive-form-card .afc-input-error {
+    border-color: #c5203f;
+}
+
+.adaptive-form-card .afc-error {
+    margin-top: 4px;
+    font-size: 13px;
+    color: #c5203f;
+}
+
+/* submit button */
+.adaptive-form-card .afc-submit {
+    margin-top: 24px;
+    padding: 10px 22px;
+    border-radius: 4px;
+    border: none;
+    background: #c5203f;
+    color: #ffffff;
+    font-size: 16px;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.adaptive-form-card .afc-submit:hover {
+    background: #a51834;
+}

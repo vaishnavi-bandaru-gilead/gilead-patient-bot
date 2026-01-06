@@ -1,229 +1,204 @@
-import inspect
+import asyncio
+import logging
+import httpx
 import os
-import time
-from typing import List, Dict
-
 from fastapi import FastAPI, HTTPException
-from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
+from typing import Optional, List
 from dotenv import load_dotenv
+from fastapi.middleware.cors import CORSMiddleware
 
-from msal import ConfidentialClientApplication
-
-from microsoft_agents.activity import ActivityTypes
-from microsoft_agents.copilotstudio.client import ConnectionSettings, CopilotClient, PowerPlatformCloud
-
-# ---------------------------------------------------------------------
-# Setup
-# ---------------------------------------------------------------------
 load_dotenv()
 
-app = FastAPI(title="Copilot Studio Backend")
+# --- CONFIG ---
+DL_SECRET = "DoOXtQ1biBgfkGUUBPBf7wgOBM0A4C6KHJ3NdIuI4yEYODwQz9EnJQQJ99BIAC4f1cMAArohAAABAZBS3Feq.Ep9vlh8JKanM9XU001FqoH1r8cNTeOJ68NabvYrMMvv4fn1e76BXJQQJ99BIAC4f1cMAArohAAABAZBS2dLv"
+
+app = FastAPI(title="Copilot Studio Gateway")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # tighten in production
+    allow_origins=["http://localhost:5173"],  # The URL of your React app
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["*"],  # Allows POST, GET, OPTIONS, etc.
+    allow_headers=["*"],  # Allows all headers (Content-Type, etc.)
 )
 
-_copilot_client: CopilotClient | None = None
-# ---------------------------------------------------------------------
-# Config
-# ---------------------------------------------------------------------
-PP_SCOPE = ["https://api.powerplatform.com/.default"]
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger("fastapi-bot")
 
-AZURE_TENANT_ID = os.getenv("AZURE_TENANT_ID") or os.getenv("COPILOTSTUDIOAGENT__TENANTID")
-AZURE_CLIENT_ID = os.getenv("AZURE_CLIENT_ID") or os.getenv("COPILOTSTUDIOAGENT__AGENTAPPID")
-AZURE_CLIENT_SECRET = os.getenv("AZURE_CLIENT_SECRET")
+# Global HTTP client for connection pooling
+http_client = httpx.AsyncClient(follow_redirects=True)
 
-COPILOT_ENV_ID = os.getenv("COPILOTSTUDIOAGENT__ENVIRONMENTID")
-COPILOT_SCHEMA_NAME = os.getenv("COPILOTSTUDIOAGENT__SCHEMANAME")
-
-if not all([AZURE_TENANT_ID, AZURE_CLIENT_ID, AZURE_CLIENT_SECRET,
-            COPILOT_ENV_ID, COPILOT_SCHEMA_NAME]):
-    raise RuntimeError("Missing required environment variables")
-
-# ---------------------------------------------------------------------
-# Token Cache (simple in-memory)
-# ---------------------------------------------------------------------
-_token_cache = {"access_token": None, "expires_at": 0}
-
-
-# def get_access_token() -> str:
-#     now = int(time.time())
-#
-#     if _token_cache["access_token"] and now < (_token_cache["expires_at"] - 60):
-#         return _token_cache["access_token"]
-#
-#     authority = f"https://login.microsoftonline.com/{AZURE_TENANT_ID}"
-#
-#     cca = ConfidentialClientApplication(
-#         client_id=AZURE_CLIENT_ID,
-#         client_credential=AZURE_CLIENT_SECRET,
-#         authority=authority,
-#     )
-#
-#     result = cca.acquire_token_for_client(scopes=PP_SCOPE)
-#     print("Acquired new access token -------------", result)
-#
-#     if "access_token" not in result:
-#         raise RuntimeError(
-#             f"Token acquisition failed: {result.get('error')} - {result.get('error_description')}"
-#         )
-#
-#     _token_cache["access_token"] = result["access_token"]
-#     _token_cache["expires_at"] = now + int(result.get("expires_in", 3600))
-#
-#     return _token_cache["access_token"]
-
-def get_access_token() -> str:
-    now = int(time.time())
-
-    authority = f"https://login.microsoftonline.com/{AZURE_TENANT_ID}"
-
-    cca = ConfidentialClientApplication(
-        client_id=AZURE_CLIENT_ID,
-        client_credential=AZURE_CLIENT_SECRET,
-        authority=authority,
-    )
-
-    result = cca.acquire_token_for_client(scopes=PP_SCOPE)
-
-    print("MSAL RESULT:", result)
-
-    if "access_token" not in result:
-        raise HTTPException(
-            status_code=500,
-            detail=result
-        )
-
-    return result["access_token"]
-
-
-def create_copilot_client() -> CopilotClient:
-    global _copilot_client
-
-    if _copilot_client:
-        return _copilot_client
-
-    token = get_access_token()
-    settings = ConnectionSettings(
-        environment_id=COPILOT_ENV_ID,
-        agent_identifier=COPILOT_SCHEMA_NAME,
-        cloud=None,
-        copilot_agent_type=None,
-        custom_power_platform_cloud=None,
-    )
-
-    _copilot_client = CopilotClient(settings, token)
-    print("Created new CopilotClient instance----------", _copilot_client)
-    return _copilot_client
-
-
-# --------------------------------------------------
-# In-memory session store (DEV SAFE)
-# --------------------------------------------------
-_sessions: Dict[str, Dict] = {}
-
-
-# ---------------------------------------------------------------------
-# Models
-# ---------------------------------------------------------------------
-class StartSessionResponse(BaseModel):
+class MessageRequest(BaseModel):
     conversationId: str
-    messages: List[Dict]
-
-
-class SendMessageRequest(BaseModel):
-    conversationId: str
+    token: str
+    baseUri: str
     text: str
+    watermark: Optional[str] = None
 
+class MessageResponse(BaseModel):
+    messages: List[str]
+    watermark: str
 
-class SendMessageResponse(BaseModel):
-    messages: List[Dict]
+@app.on_event("shutdown")
+async def shutdown_event():
+    await http_client.aclose()
 
-
-# ---------------------------------------------------------------------
-# Routes
-# ---------------------------------------------------------------------
-
-@app.post("/api/session/start", response_model=StartSessionResponse)
+@app.post("/api/session/start")
 async def start_session():
-    if "default" in _sessions:
-        return _sessions["default"]
-
-    client = create_copilot_client()
-    print(inspect.getsource(client.start_conversation))
-
-    stream = client.start_conversation()
-
-    conversation_id = None
-    messages: List[Dict] = []
-
-    async for act in stream:
-        if not conversation_id and getattr(act, "conversation", None):
-            conversation_id = act.conversation.id
-
-        if act.type == ActivityTypes.message and act.text:
-            messages.append({
-                "id": getattr(act, "id", None),
-                "sender": "bot",
-                "text": act.text,
-                "timestamp": getattr(act, "timestamp", None),
-            })
-
-    if not conversation_id:
-        raise HTTPException(status_code=500, detail="Failed to obtain conversationId")
-
-    response = {
-        "conversationId": conversation_id,
-        "messages": messages,
+    """Starts a session and returns the Direct Line token and conversation ID."""
+    url = "https://directline.botframework.com/v3/directline/conversations"
+    headers = {
+        "Authorization": f"Bearer {DL_SECRET}",
+        "Content-Type": "application/json"
     }
 
-    _sessions["default"] = response
-    return response
+    try:
+        response = await http_client.post(url, headers=headers, json={})
+
+        # India Regional Fallback if necessary
+        if response.status_code == 403:
+            logger.warning("Global 403, attempting India regional gateway...")
+            url = "https://india.directline.botframework.com/v3/directline/conversations"
+            response = await http_client.post(url, headers=headers, json={})
+
+        if response.status_code not in (200, 201):
+            raise HTTPException(status_code=response.status_code, detail=f"Downstream Error: {response.text}")
+
+        data = response.json()
+        base_uri = "https://directline.botframework.com" if "india" not in str(response.url) else "https://india.directline.botframework.com"
+
+        return {
+            "token": data.get("token"),
+            "conversationId": data.get("conversationId"),
+            "baseUri": base_uri
+        }
+    except Exception as e:
+        logger.error(f"Handshake error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/session/send")
+async def send_message(req: MessageRequest):
+    activity_url = f"{req.baseUri}/v3/directline/conversations/{req.conversationId}/activities"
+    headers = {
+        "Authorization": f"Bearer {req.token}",
+        "Content-Type": "application/json"
+    }
+
+    # 1. Send user message
+    payload = {
+        "type": "message",
+        "from": {"id": "user1"},
+        "text": req.text
+    }
+    await http_client.post(activity_url, headers=headers, json=payload)
+
+    # 2. Advanced Polling Loop
+    # We poll up to 3 times with a small delay to "catch" the bot's response
+    max_retries = 3
+    bot_messages = []
+    current_watermark = req.watermark
+
+    for i in range(max_retries):
+        await asyncio.sleep(2.0) # Wait between polls
+
+        poll_url = activity_url
+        if current_watermark:
+            poll_url += f"?watermark={current_watermark}"
+
+        get_res = await http_client.get(poll_url, headers=headers)
+        data = get_res.json()
+
+        activities = data.get("activities", [])
+        current_watermark = data.get("watermark", current_watermark)
+
+        # Look for messages from the bot
+        new_bot_msgs = [
+            act.get("text") for act in activities
+            if act.get("from", {}).get("id") != "user1" and act.get("type") == "message"
+        ]
+
+        if new_bot_msgs:
+            bot_messages.extend(new_bot_msgs)
+            break # Exit loop once we get a reply
+
+    return {
+        "messages": bot_messages,
+        "watermark": current_watermark
+    }
 
 
-@app.post("/api/session/send", response_model=SendMessageResponse)
-async def send_message(payload: SendMessageRequest):
-    text = payload.text.strip()
-    if not text:
-        raise HTTPException(status_code=400, detail="text is required")
+# @app.post("/api/session/send")
+# async def send_message(req: MessageRequest):
+#     activity_url = f"{req.baseUri}/v3/directline/conversations/{req.conversationId}/activities"
+#     headers = {
+#         "Authorization": f"Bearer {req.token}",
+#         "Content-Type": "application/json"
+#     }
+#
+#     # 1. Send user message
+#     payload = {
+#         "type": "message",
+#         "from": {"id": "user1"},
+#         "text": req.text
+#     }
+#
+#     # Send the message and verify it was accepted
+#     send_res = await http_client.post(activity_url, headers=headers, json=payload)
+#     if send_res.status_code not in (200, 201, 202):
+#         raise HTTPException(status_code=send_res.status_code, detail="Failed to send message")
+#
+#     # 2. LONG POLLING: Wait for the bot to actually respond
+#     bot_messages = []
+#     current_watermark = req.watermark
+#
+#     # We will poll up to 5 times (total ~6-7 seconds)
+#     for attempt in range(5):
+#         # Give the bot some "thinking time" before each check
+#         # First wait is longer (2s), subsequent checks are faster (1s)
+#         await asyncio.sleep(2.0 if attempt == 0 else 1.0)
+#
+#         poll_url = activity_url
+#         if current_watermark:
+#             poll_url += f"?watermark={current_watermark}"
+#
+#         get_res = await http_client.get(poll_url, headers=headers)
+#         if get_res.status_code != 200:
+#             continue
+#
+#         data = get_res.json()
+#         activities = data.get("activities", [])
+#
+#         # Filter for messages from the bot (ignore our own message)
+#         new_replies = [
+#             act for act in activities
+#             if act.get("from", {}).get("id") != "user1" and act.get("type") == "message"
+#         ]
+#
+#         if new_replies:
+#             # We found the response!
+#             bot_messages = new_replies
+#             current_watermark = data.get("watermark", current_watermark)
+#             break
+#
+#             # If we reach here, no response yet. Loop will sleep and try again.
+#         logger.info(f"Attempt {attempt + 1}: No response yet, retrying...")
+#
+#     # 3. Format for Frontend
+#     formatted = [
+#         {
+#             "id": m.get("id"),
+#             "text": m.get("text"),
+#             "attachments": m.get("attachments", []),
+#             "timestamp": m.get("timestamp")
+#         } for m in bot_messages
+#     ]
+#
+#     return {
+#         "messages": formatted,
+#         "watermark": current_watermark
+#     }
 
-    client = create_copilot_client()
-    replies = client.ask_question(text, payload.conversationId)
-
-    out: List[Dict] = []
-
-    async for act in replies:
-        if act.type == ActivityTypes.message and act.text:
-            out.append({
-                "id": getattr(act, "id", None),
-                "sender": "bot",
-                "text": act.text,
-                "timestamp": getattr(act, "timestamp", None),
-            })
-        elif act.type == ActivityTypes.end_of_conversation:
-            break
-
-    return {"messages": out}
-
-
-@app.get("/api/health")
-def health():
-    return {"status": "ok"}
-
-
-@app.post("/api/test-copilot")
-async def test_copilot():
-    client = create_copilot_client()
-    activities = client.start_conversation(True)
-
-    messages = []
-    async for activity in activities:
-        if activity.text:
-            messages.append(activity.text)
-
-    return {"messages": messages}
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8000)

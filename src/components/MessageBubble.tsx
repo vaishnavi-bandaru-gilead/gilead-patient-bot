@@ -4,13 +4,24 @@ import doctorImg from "../assets/doctor.png";
 import "../styles/MessageBubble.css";
 
 interface MessageBubbleProps {
-    text: string;
+    text?: string | null; // Made optional since a message might only be a card
     sender: "user" | "bot" | "system";
     timestamp: Date;
     isUser: boolean;
+    showAvatar?: boolean;
+    isLastBotMessage?: boolean;
+    children?: React.ReactNode; // Added to allow nesting Adaptive Cards
 }
 
-const MessageBubble: React.FC<MessageBubbleProps> = ({ text, sender, timestamp, isUser }) => {
+const MessageBubble: React.FC<MessageBubbleProps> = ({
+                                                         text,
+                                                         sender,
+                                                         timestamp,
+                                                         isUser,
+                                                         showAvatar,
+                                                         isLastBotMessage,
+                                                         children
+                                                     }) => {
     const formatTime = (date: Date) => {
         const day = date.toLocaleDateString("en-GB", { day: "numeric", month: "short" });
         const time = date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: true }).toLowerCase();
@@ -26,34 +37,44 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({ text, sender, timestamp, 
     }
 
     return (
-        <div className={`msg-row ${isUser ? "user-row" : "bot-row"}`}>
-            {!isUser && (
+        <div className={`msg-row ${isUser ? "user-row" : "bot-row"} ${!isUser && !showAvatar ? "bot-no-avatar" : ""}`}>
+            {!isUser && showAvatar && (
                 <div className="msg-avatar-container">
-                    <img src={doctorImg} className="msg-avatar" alt="" />
+                    <img src={doctorImg} className="msg-avatar" alt="Bot Avatar" />
                 </div>
             )}
             <div className="msg-content-wrapper" style={{ alignItems: isUser ? "flex-end" : "flex-start" }}>
                 <div className={`msg-bubble ${isUser ? "user-bubble" : "bot-bubble"}`}>
-                    <ReactMarkdown
-                        components={{
-                            a: ({ node, ...props }) => (
-                                <a
-                                    style={{
-                                        color: isUser ? "white" : "#00539B",
-                                        textDecoration: "underline",
-                                    }}
-                                    {...props}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                />
-                            ),
-                            p: ({ children }) => <p style={{ margin: "0 0 8px 0" }}>{children}</p>,
-                        }}
-                    >
-                        {text}
-                    </ReactMarkdown>
+
+                    {/* Render Text if it exists */}
+                    {text && (
+                        <div className="msg-text-content">
+                            <ReactMarkdown
+                                components={{
+                                    a: ({ node, ...props }) => (
+                                        <a
+                                            style={{
+                                                color: isUser ? "white" : "#00539B",
+                                                textDecoration: "underline",
+                                            }}
+                                            {...props}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                        />
+                                    ),
+                                    p: ({ children }) => <p style={{ margin: "0 0 8px 0" }}>{children}</p>,
+                                }}
+                            >
+                                {text}
+                            </ReactMarkdown>
+                        </div>
+                    )}
+
+                    {/* Render Adaptive Card or other content here */}
+                    {children}
+
                 </div>
-                <div className="msg-time">{formatTime(timestamp)}</div>
+                {!isUser && isLastBotMessage && <div className="msg-time">{formatTime(timestamp)}</div>}
             </div>
         </div>
     );
