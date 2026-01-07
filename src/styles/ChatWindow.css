@@ -7,13 +7,14 @@ body {
     background-color: rgba(204, 204, 204, 0.24);
 }
 
-.chat-container{
+.chat-container {
     position: fixed;
     bottom: 30px;
     right: 30px;
     z-index: 1000;
     background-color: transparent;
 }
+
 .chat-window-container {
     position: fixed;
     bottom: 30px;
@@ -22,7 +23,7 @@ body {
     height: 85vh;
     background-color: rgba(204, 204, 204, 0.24);
     border-radius: 16px 16px 0 0;
-    box-shadow: 0 0 25px rgba(0,0,0,0.3);
+    box-shadow: 0 0 25px rgba(0, 0, 0, 0.3);
     display: flex;
     flex-direction: column;
     overflow: hidden;
@@ -174,7 +175,6 @@ input {
     color: gray;
 }
 
-/* INPUT */
 .chat-input {
     display: flex;
     padding: 7px;
@@ -195,8 +195,8 @@ input {
 }
 
 #chatInput:focus {
-    outline: none !important;   /* Hard remove */
-    box-shadow: none !important; /* Removes glow or border highlight */
+    outline: none !important;
+    box-shadow: none !important;
 }
 
 .chat-input input {
@@ -214,7 +214,7 @@ input {
     border-radius: 50%;
     font-size: 18px;
     cursor: pointer;
-    background: #bbb;   /* inactive */
+    background: #bbb;
     transition: background 0.2s ease;
 }
 
@@ -223,12 +223,10 @@ input {
     cursor: pointer;
 }
 
-/* Active + Hover = red */
 .send-btn.active:hover {
     background: #C5203F;
 }
 
-/* FOOTER */
 .chat-footer {
     background: #C5203F;
     padding: 0px;
@@ -245,4 +243,28 @@ input {
     font-size: 30px;
     padding: 0;
     margin: 0px 0px 0px 15px;
+}
+
+.suggested-actions-container {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    padding: 10px 0 10px 50px
+}
+
+.suggested-action-btn {
+    padding: 8px 16px;
+    border-radius: 20px;
+    border: 1px solid black;
+    background-color: white;
+    color: black;
+    cursor: pointer;
+    outline: none !important;
+    box-shadow: none !important;
+}
+
+.suggested-action-btn:hover {
+    border: 1px solid #C5203F;
+    background-color: #C5203F;
+    color: white;
 }

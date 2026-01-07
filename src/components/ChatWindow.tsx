@@ -5,133 +5,86 @@ import gileadLogo from "../assets/gilead-logo.png";
 import MessageBubble from "../components/MessageBubble";
 import AdaptiveCardForm from "../components/AdaptiveCardForm";
 
-interface ChatWindowProps {
-    onClose: () => void;
-}
-
+interface ChatWindowProps { onClose: () => void; }
 type Sender = "user" | "bot" | "system";
-
-interface Message {
-    id: string;
-    text?: string | null;
-    sender: Sender;
-    timestamp: Date;
-    attachments?: any[];
-}
+interface Message { id: string; text?: string | null; sender: Sender; timestamp: Date; attachments?: any[]; suggestedActions?: any[]; }
 
 const ChatWindow: React.FC<ChatWindowProps> = ({onClose}) => {
     const [closing, setClosing] = useState(false);
     const [inputValue, setInputValue] = useState("");
+    const [loading, setLoading] = useState(false);
+    const [conversationId, setConversationId] = useState<string | null>(null);
+    const [token, setToken] = useState<string | null>(null);
+    const [watermark, setWatermark] = useState<string | null>(null);
+    const [messages, setMessages] = useState<Message[]>([{
+        id: 'welcome-msg',
+        text: "Welcome. If you would like to report an adverse event at any time, you can visit Gilead's Adverse Event Reporting portal, or call 1-800-GILEAD-5 (press option #3).\n\n**Please type your question below and include a Gilead drug name.**",
+        sender: 'bot',
+        timestamp: new Date(),
+    }]);
+
     const chatBodyRef = useRef<HTMLDivElement>(null);
     const sessionStartedRef = useRef(false);
 
-    const [conversationId, setConversationId] = useState<string | null>(null);
-    const [token, setToken] = useState<string | null>(null);
-    const [baseUri, setBaseUri] = useState<string | null>(null);
-    const [watermark, setWatermark] = useState<string | null>(null);
-
-    const [messages, setMessages] = useState<Message[]>([
-        {
-            id: 'welcome-msg',
-            text:
-                "Welcome. If you would like to report an adverse event at any time, you can visit Gilead's Adverse Event Reporting portal, or call 1-800-GILEAD-5 (press option #3).\n\n**Please type your question below and include a Gilead drug name.**",
-            sender: 'bot',
-            timestamp: new Date(),
-        },
-    ]);
-
-    // 1. Start Session
     const startSession = async () => {
         try {
             const res = await fetch("http://localhost:8000/api/session/start", {method: "POST"});
-            if (!res.ok) throw new Error(`Session start failed (${res.status})`);
-
             const data = await res.json();
-            // Store all 3 pieces of session data
             setConversationId(data.conversationId);
             setToken(data.token);
-            setBaseUri(data.baseUri);
-
-            console.log("Session started on:", data.baseUri);
-        } catch (err) {
-            console.error("Session init error:", err);
-            setMessages(prev => [...prev, {
-                id: 'err-init',
-                text: "❌ Error connecting to the agent. Please refresh.",
-                sender: 'system',
-                timestamp: new Date()
-            }]);
-        }
+        } catch (err) { console.error("Session init error:", err); }
     };
 
     useEffect(() => {
-        if (sessionStartedRef.current) return;
-        sessionStartedRef.current = true;
-        startSession();
+        if (!sessionStartedRef.current) {
+            sessionStartedRef.current = true;
+            startSession();
+        }
     }, []);
 
-    // 2. Send Message
-    const handleSend = async () => {
-        if (!inputValue.trim() || !conversationId || !token || !baseUri) return;
+    const handleSend = async (customValue?: any) => {
+        if (!customValue && !inputValue.trim()) return;
+        if (!conversationId || !token) return;
 
-        const textToSend = inputValue;
-        setInputValue("");
+        const isCardSubmit = typeof customValue === 'object' && customValue !== null;
+        const textToSend = typeof customValue === 'string' ? customValue : (isCardSubmit ? "" : inputValue);
 
-        // Add user message to UI immediately
-        setMessages(prev => [...prev, {
-            id: Date.now().toString(),
-            text: textToSend,
-            sender: 'user',
-            timestamp: new Date()
-        }]);
+        if (!customValue) setInputValue("");
+        setLoading(true);
+
+        if (textToSend) {
+            setMessages(prev => [...prev, { id: Date.now().toString(), text: textToSend, sender: 'user', timestamp: new Date() }]);
+        }
+
+        setMessages(prev => prev.map(m => ({ ...m, suggestedActions: [] })));
 
         try {
             const res = await fetch("http://localhost:8000/api/session/send", {
                 method: "POST",
                 headers: {"Content-Type": "application/json"},
-                body: JSON.stringify({
-                    conversationId: conversationId,
-                    token: token,
-                    baseUri: baseUri,
-                    text: textToSend,
-                    watermark: watermark // Send the last known watermark
-                }),
+                body: JSON.stringify({ conversationId, token, message: textToSend, watermark, value: isCardSubmit ? customValue : null }),
             });
 
-            if (!res.ok) throw new Error(`Send failed (${res.status})`);
-
             const data = await res.json();
-
-            // Update watermark for next request
             setWatermark(data.watermark);
 
-            // Append bot responses
-            if (data.messages && data.messages.length > 0) {
-                const newBotMsgs = data.messages.map((msgText: string, index: number) => ({
-                    id: `bot-${Date.now()}-${index}`,
-                    text: msgText,
-                    sender: "bot" as Sender,
+            if (data.text || (data.attachments && data.attachments.length > 0)) {
+                setMessages(prev => [...prev, {
+                    id: data.id || `bot-${Date.now()}`,
+                    text: data.text,
+                    sender: "bot",
                     timestamp: new Date(),
-                }));
-                setMessages(prev => [...prev, ...newBotMsgs]);
+                    attachments: data.attachments || [],
+                    suggestedActions: data.suggestedActions || []
+                }]);
             }
-        } catch (error) {
-            console.error("Send failed:", error);
-            setMessages(prev => [...prev, {
-                id: 'err-' + Date.now(),
-                text: "❌ Failed to send message.",
-                sender: 'system',
-                timestamp: new Date()
-            }]);
-        }
+        } catch (error) { console.error("Send failed:", error); }
+        finally { setLoading(false); }
     };
 
-    // Auto-scroll logic
     useEffect(() => {
-        if (chatBodyRef.current) {
-            chatBodyRef.current.scrollTop = chatBodyRef.current.scrollHeight;
-        }
-    }, [messages]);
+        if (chatBodyRef.current) chatBodyRef.current.scrollTop = chatBodyRef.current.scrollHeight;
+    }, [messages, loading]);
 
     const handleClose = () => {
         setClosing(true);
@@ -154,106 +107,49 @@ const ChatWindow: React.FC<ChatWindowProps> = ({onClose}) => {
                     </div>
                 </div>
                 <div className="chat-body" ref={chatBodyRef}>
-                    <div className="welcome-banner">
-                        <img src={gillianIntro} className="banner-avatar" alt="avatar"/>
-                    </div>
+                    <div className="welcome-banner"><img src={gillianIntro} className="banner-avatar" alt="avatar"/></div>
                     <hr className="divider"/>
                     {messages.map((msg, index) => {
                         const isBot = msg.sender === 'bot';
-
                         const showAvatar = isBot && (index === 0 || messages[index - 1].sender !== 'bot');
                         const isLastBotMessage = isBot && (index === messages.length - 1 || messages[index + 1].sender !== 'bot');
-
-                        // Check for Adaptive Card
-                        const adaptiveCard = msg.attachments?.find(
-                            (att) => att.contentType === "application/vnd.microsoft.card.adaptive"
-                        );
-
-                        if (adaptiveCard && adaptiveCard.content && adaptiveCard.content.body) {
-                            const bodyElements = adaptiveCard.content.body;
-                            const textBlocks = bodyElements.filter((e: any) => e.type === "TextBlock");
-                            const hasInputs = bodyElements.some((e: any) => e.type !== "TextBlock");
-                            return (
-                                <div key={msg.id}>
-                                    {textBlocks.map((block: any, idx: number) => (
-                                        <MessageBubble
-                                            key={`${msg.id}-txt-${idx}`}
-                                            text={block.text}
-                                            sender="bot"
-                                            timestamp={msg.timestamp}
-                                            isUser={false}
-                                            showAvatar={showAvatar && idx === 0}
-                                            isLastBotMessage={isLastBotMessage && !hasInputs && idx === textBlocks.length - 1}
-                                        />
-                                    ))}
-
-                                    {hasInputs && (
-                                        <MessageBubble
-                                            text={null}
-                                            sender="bot"
-                                            timestamp={msg.timestamp}
-                                            isUser={false}
-                                            showAvatar={showAvatar && textBlocks.length === 0}
-                                            isLastBotMessage={isLastBotMessage}
-                                        >
-                                            <AdaptiveCardForm
-                                                card={adaptiveCard.content}
-                                                onSubmit={(values) => {
-                                                    console.log("Adaptive card submit:", values);
-                                                    fetch("/api/session/send", {
-                                                        method: "POST",
-                                                        headers: {"Content-Type": "application/json"},
-                                                        body: JSON.stringify({
-                                                            conversationId,
-                                                            text: "",
-                                                            value: values
-                                                        })
-                                                    });
-                                                }}
-                                            />
-                                        </MessageBubble>
-                                    )}
-                                </div>
-                            );
-                        }
+                        const adaptiveCard = msg.attachments?.find(a => a.contentType === "application/vnd.microsoft.card.adaptive");
 
                         return (
                             <div key={msg.id}>
                                 {msg.text && (
-                                    <MessageBubble
-                                        text={msg.text}
-                                        sender={msg.sender}
-                                        timestamp={msg.timestamp}
-                                        isUser={msg.sender === "user"}
-                                        showAvatar={showAvatar}
-                                        isLastBotMessage={isLastBotMessage}
-                                    />
+                                    <MessageBubble text={msg.text} sender={msg.sender} timestamp={msg.timestamp} isUser={msg.sender === "user"} showAvatar={showAvatar} isLastBotMessage={isLastBotMessage && !adaptiveCard && (!msg.suggestedActions || msg.suggestedActions.length === 0)} />
+                                )}
+                                {adaptiveCard && (
+                                    <>
+                                        {adaptiveCard.content.body.filter((el: any) => el.type === "TextBlock").map((block: any, bIdx: number) => (
+                                            <MessageBubble key={`${msg.id}-b-${bIdx}`} text={block.text} sender="bot" timestamp={msg.timestamp} isUser={false} showAvatar={showAvatar && bIdx === 0 && !msg.text} isLastBotMessage={isLastBotMessage && bIdx === adaptiveCard.content.body.filter((el: any) => el.type === "TextBlock").length - 1 && !adaptiveCard.content.body.some((el: any) => el.type !== "TextBlock")} />
+                                        ))}
+                                        {adaptiveCard.content.body.some((el: any) => el.type !== "TextBlock") && (
+                                            <MessageBubble text={null} sender="bot" timestamp={msg.timestamp} isUser={false} showAvatar={showAvatar && !msg.text && !adaptiveCard.content.body.some((el: any) => el.type === "TextBlock")} isLastBotMessage={isLastBotMessage && (!msg.suggestedActions || msg.suggestedActions.length === 0)}>
+                                                <AdaptiveCardForm card={adaptiveCard.content} onSubmit={(val) => handleSend(val)} />
+                                            </MessageBubble>
+                                        )}
+                                    </>
+                                )}
+                                {isBot && msg.suggestedActions && msg.suggestedActions.length > 0 && (
+                                    <div className="suggested-actions-container">
+                                        {msg.suggestedActions.map((action: any, i: number) => (
+                                            <button key={i} onClick={() => handleSend(action.value)} className="suggested-action-btn">{action.title}</button>
+                                        ))}
+                                    </div>
                                 )}
                             </div>
                         );
                     })}
+                    {loading && <div className="msg-row bot-row"><div className="msg-avatar-container"><div className="typing-indicator"><span>.</span><span>.</span><span>.</span></div></div></div>}
                 </div>
                 <div className="chat-input">
-                    <input
-                        id="chatInput"
-                        type="text"
-                        placeholder="Type your question here"
-                        value={inputValue}
-                        onChange={(e) => setInputValue(e.target.value)}
-                        onKeyDown={(e) => e.key === 'Enter' && handleSend()}
-                    />
-                    <button
-                        id="sendBtn"
-                        className={`send-btn ${hasText ? "active" : ""}`}
-                        disabled={!hasText}
-                        onClick={handleSend}
-                    >
-                        ➣
-                    </button>
+                    <input type="text" id="chatInput" placeholder="Type your question here" value={inputValue} onChange={(e) => setInputValue(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handleSend()} />
+                    <button className={`send-btn ${hasText ? "active" : ""}`} disabled={!hasText} onClick={() => handleSend()}>➣</button>
                 </div>
                 <div className="chat-footer">
-                    <span className="footer-caret">›</span>
-                    Privacy Statement
+                    <span className="footer-caret">›</span> Privacy Statement
                 </div>
             </div>
         </div>

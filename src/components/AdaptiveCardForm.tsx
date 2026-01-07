@@ -1,44 +1,27 @@
 import React, { useState } from "react";
 
 type AdaptiveElement =
-    | {
-    type: "TextBlock";
-    text: string;
-    wrap?: boolean;
-    weight?: "Bolder" | "Lighter" | "Default";
-    size?: string;
-}
-    | {
-    type: "Input.Text";
-    id: string;
-    label?: string;
-    placeholder?: string;
-    isRequired?: boolean;
-    errorMessage?: string;
-    style?: string;
-    regex?: string;
-    isMultiline?: boolean;
-};
+    | { type: "TextBlock"; text: string; wrap?: boolean; weight?: "Bolder" | "Lighter" | "Default"; size?: string; }
+    | { type: "Input.Text"; id: string; label?: string; placeholder?: string; isRequired?: boolean; errorMessage?: string; style?: string; regex?: string; isMultiline?: boolean; }
+    | { type: "Input.ChoiceSet"; id: string; label?: string; isRequired?: boolean; errorMessage?: string; choices: { title: string; value: string }[]; placeholder?: string; }
+    | { type: "ActionSet"; actions: any[]; };
 
 interface AdaptiveCardContent {
     type: "AdaptiveCard";
     body: AdaptiveElement[];
-    actions?: { type: "Action.Submit"; title: string }[];
+    actions?: { type: "Action.Submit"; title: string; data?: any }[];
     version?: string;
-    $schema?: string;
 }
 
 interface Props {
     card: AdaptiveCardContent;
-    onSubmit?: (values: Record<string, string>) => void;
+    onSubmit?: (values: any) => void;
 }
 
 const AdaptiveFormCard: React.FC<Props> = ({ card, onSubmit }) => {
     const [values, setValues] = useState<Record<string, string>>({});
     const [errors, setErrors] = useState<Record<string, string>>({});
     const [submitted, setSubmitted] = useState(false);
-
-    // State to handle button hover effect
     const [isHovered, setIsHovered] = useState(false);
 
     const handleChange = (id: string, value: string) => {
@@ -46,41 +29,26 @@ const AdaptiveFormCard: React.FC<Props> = ({ card, onSubmit }) => {
         setErrors((prev) => ({ ...prev, [id]: "" }));
     };
 
-    const handleSubmit = () => {
+    const handleSubmit = (actionData?: any) => {
         const newErrors: Record<string, string> = {};
-
         card.body.forEach((el) => {
-            if (el.type === "Input.Text") {
-                const v = values[el.id]?.trim() ?? "";
-                if (el.isRequired && !v) {
-                    newErrors[el.id] = el.errorMessage || "This field is required";
-                }
-                if (v && el.regex) {
-                    try {
-                        const re = new RegExp(el.regex);
-                        if (!re.test(v)) {
-                            newErrors[el.id] = el.errorMessage || "Invalid value";
-                        }
-                    } catch { /* ignore regex errors */ }
+            if (el.type === "Input.Text" || el.type === "Input.ChoiceSet") {
+                const v = values[(el as any).id]?.trim() ?? "";
+                if ((el as any).isRequired && !v) {
+                    newErrors[(el as any).id] = (el as any).errorMessage || "Required";
                 }
             }
         });
 
-        setErrors(newErrors);
-
         if (Object.keys(newErrors).length === 0) {
             setSubmitted(true);
-            onSubmit?.(values);
+            onSubmit?.(actionData || values);
+        } else {
+            setErrors(newErrors);
         }
     };
 
-    if (submitted) {
-        return (
-            <div style={{ fontStyle: "italic", textAlign: "center", padding: "10px", opacity: 0.8 }}>
-                ✓ Form submitted
-            </div>
-        );
-    }
+    if (submitted) return <div style={{ fontStyle: "italic", textAlign: "center", padding: "10px", opacity: 0.8 }}>✓ Form submitted</div>;
 
     return (
         <div className="adaptive-form-wrapper" style={{
@@ -89,58 +57,43 @@ const AdaptiveFormCard: React.FC<Props> = ({ card, onSubmit }) => {
             display: "flex",
             flexDirection: "column",
             gap: "10px",
-            boxSizing: "border-box"
+            boxSizing: "border-box" // Prevents overflow
         }}>
-            {card.body.map((el) => {
-                if (el.type === "TextBlock") return null;
+            {card.body.map((el, idx) => {
+                if (el.type === "TextBlock") return null; // Handled as separate bubbles in ChatWindow
+
+                const error = (el as any).id ? errors[(el as any).id] : null;
 
                 if (el.type === "Input.Text") {
-                    const value = values[el.id] ?? "";
-                    const error = errors[el.id];
-
                     return (
-                        <div key={el.id} className="afc-field" style={{ width: "100%" }}>
+                        <div key={(el as any).id} className="afc-field" style={{ width: "100%", boxSizing: "border-box" }}>
                             {el.label && (
-                                <label
-                                    htmlFor={el.id}
-                                    style={{ display: "block", marginBottom: "4px", fontSize: "0.85em", fontWeight: 600 }}
-                                >
-                                    {el.label}
-                                    {el.isRequired && <span style={{ color: "red" }}> *</span>}
+                                <label style={{ display: "block", marginBottom: "4px", fontSize: "0.85em", fontWeight: 600 }}>
+                                    {el.label}{el.isRequired && <span style={{ color: "red" }}> *</span>}
                                 </label>
                             )}
-
                             {el.isMultiline ? (
                                 <textarea
-                                    id={el.id}
                                     placeholder={el.placeholder}
-                                    value={value}
+                                    value={values[el.id] || ""}
                                     onChange={(e) => handleChange(el.id, e.target.value)}
                                     style={{
-                                        width: "100%",
-                                        padding: "10px",
-                                        borderRadius: "6px",
+                                        width: "100%", padding: "10px", borderRadius: "6px",
                                         border: error ? "1px solid red" : "1px solid #ccc",
-                                        fontFamily: "inherit",
-                                        resize: "vertical",
-                                        boxSizing: "border-box"
+                                        fontFamily: "inherit", resize: "vertical", boxSizing: "border-box"
                                     }}
                                     rows={3}
                                 />
                             ) : (
                                 <input
-                                    id={el.id}
                                     placeholder={el.placeholder}
-                                    value={value}
+                                    value={values[el.id] || ""}
                                     onChange={(e) => handleChange(el.id, e.target.value)}
                                     type={el.style?.toLowerCase() === "email" ? "email" : "text"}
                                     style={{
-                                        width: "100%",
-                                        padding: "10px",
-                                        borderRadius: "6px",
+                                        width: "100%", padding: "10px", borderRadius: "6px",
                                         border: error ? "1px solid red" : "1px solid #ccc",
-                                        fontFamily: "inherit",
-                                        boxSizing: "border-box"
+                                        fontFamily: "inherit", boxSizing: "border-box"
                                     }}
                                 />
                             )}
@@ -148,33 +101,55 @@ const AdaptiveFormCard: React.FC<Props> = ({ card, onSubmit }) => {
                         </div>
                     );
                 }
+
+                if (el.type === "Input.ChoiceSet") {
+                    return (
+                        <div key={(el as any).id} className="afc-field" style={{ width: "100%", boxSizing: "border-box" }}>
+                            {el.label && (
+                                <label style={{ display: "block", marginBottom: "4px", fontSize: "0.85em", fontWeight: 600 }}>
+                                    {el.label}{el.isRequired && <span style={{ color: "red" }}> *</span>}
+                                </label>
+                            )}
+                            <select
+                                onChange={(e) => handleChange((el as any).id, e.target.value)}
+                                style={{ width: "100%", padding: "10px", borderRadius: "6px", boxSizing: "border-box", border: error ? "1px solid red" : "1px solid #ccc" }}
+                            >
+                                <option value="">{el.placeholder || "Select..."}</option>
+                                {el.choices.map(c => <option key={c.value} value={c.value}>{c.title}</option>)}
+                            </select>
+                            {error && <div style={{ color: "red", fontSize: "0.8em", marginTop: "2px" }}>{error}</div>}
+                        </div>
+                    );
+                }
+
+                if (el.type === "ActionSet") {
+                    return (
+                        <div key={idx} style={{ display: "flex", gap: "8px", flexWrap: "wrap", marginTop: "5px" }}>
+                            {el.actions.map((act: any, i: number) => (
+                                <button key={i} onClick={() => act.type === "Action.OpenUrl" ? window.open(act.url) : handleSubmit(act.data)}
+                                        style={{ padding: "8px 16px", borderRadius: "20px", cursor: "pointer", fontSize: "0.9em", border: "1px solid #00539B", backgroundColor: "white", color: "#00539B" }}>
+                                    {act.title}
+                                </button>
+                            ))}
+                        </div>
+                    );
+                }
                 return null;
             })}
 
-            {/* Submit Button Area - Aligned Right */}
             {card.actions?.some((a) => a.type === "Action.Submit") && (
                 <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "5px" }}>
                     <button
-                        onClick={handleSubmit}
+                        onClick={() => handleSubmit(card.actions?.find(a => a.type === "Action.Submit")?.data)}
                         onMouseEnter={() => setIsHovered(true)}
                         onMouseLeave={() => setIsHovered(false)}
                         style={{
-                            // Transition for smooth color change
                             transition: "background-color 0.2s ease",
-                            // Dynamic Background: Blue default, Red on hover
-                            backgroundColor: isHovered ? "#c5203f" : "",
+                            backgroundColor: isHovered ? "#c5203f" : "white",
                             color: isHovered ? "white" : "black",
                             border: "1px solid black",
                             borderColor: isHovered ? "#c5203f" : "black",
-                            // Rounded Pill Shape
-                            borderRadius: "20px",
-                            // Padding for width/height balance
-                            padding: "8px 24px",
-                            fontFamily: "inherit",
-                            fontSize: "0.95em",
-                            cursor: "pointer",
-                            fontWeight: "400",
-                            boxSizing: "border-box"
+                            borderRadius: "20px", padding: "8px 24px", cursor: "pointer", fontWeight: "400", boxSizing: "border-box"
                         }}
                     >
                         {card.actions.find((a) => a.type === "Action.Submit")?.title ?? "Submit"}

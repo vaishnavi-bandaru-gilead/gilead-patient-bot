@@ -48,33 +48,38 @@ async def send_and_receive(data: SendMessageRequest):
         "Content-Type": "application/json"
     }
 
-    send_time = datetime.now(timezone.utc)
+    # 1. MARK START TIME to avoid "Previous Response" lag/caching
+    poll_start_time = datetime.now(timezone.utc)
 
-    # 1. POST the user message ("Thumbs up" or "Done")
     post_url = f"{BASE_URL}/conversations/{data.conversationId}/activities"
     activity_payload = {
         "type": "message",
         "from": {"id": "1f56e39b-21f4-4c0b-8761-b100c6190448", "role": "user"},
         "text": data.message,
+        "textFormat": "plain",
+        "locale": "en",
+        "channelId": "webchat",
         "cci_bot_id": BOT_ID,
         "cci_tenant_id": TENANT_ID,
         "cci_environment_id": ENV_ID,
-        "channelId": "webchat"
+        "channelData": {
+            "cci_trace_id": uuid.uuid4().hex[:5],
+            "clientActivityID": uuid.uuid4().hex[:10]
+        }
     }
 
     async with httpx.AsyncClient(timeout=80.0) as client:
         try:
+            # Send the user's message
             send_res = await client.post(post_url, json=activity_payload, headers=auth_headers)
             send_res.raise_for_status()
-            sent_msg_id = send_res.json().get("id")
 
-            # 2. POLL for the NEW response
-            # Note: We prioritize the new watermark returned by the POST if available
+            # 2. POLL for Bot Response
             current_watermark = data.watermark
             get_url = f"{GLOBAL_URL}/conversations/{data.conversationId}/activities"
 
             start_loop = time.time()
-            while (time.time() - start_loop) < 65:
+            while (time.time() - start_loop) < 65: # 65 second max wait
                 params = {"watermark": current_watermark} if current_watermark else {}
                 get_res = await client.get(get_url, headers=auth_headers, params=params)
                 get_res.raise_for_status()
@@ -83,21 +88,17 @@ async def send_and_receive(data: SendMessageRequest):
                 activities = resp_data.get("activities", [])
                 new_watermark = resp_data.get("watermark")
 
-                # FILTERING LOGIC
-                valid_bot_msgs = []
-                for act in activities:
-                    if act.get("from", {}).get("role") == "bot":
-                        act_ts = datetime.fromisoformat(act.get("timestamp").replace("Z", "+00:00"))
+                # Filter for bot activities created AFTER we sent our message
+                new_bot_msgs = []
+                for a in activities:
+                    if a.get("from", {}).get("role") == "bot":
+                        # Convert bot timestamp to UTC for comparison
+                        a_time = datetime.fromisoformat(a.get("timestamp").replace("Z", "+00:00"))
+                        if a_time >= poll_start_time:
+                            new_bot_msgs.append(a)
 
-                        # LOGIC: It must be a new activity ID and occur after our send_time
-                        if act_ts > send_time and act.get("id") != sent_msg_id:
-                            valid_bot_msgs.append(act)
-
-                if valid_bot_msgs:
-                    last_msg = valid_bot_msgs[-1]
-
-                    # If the bot is just saying a single text string (e.g. "Done"),
-                    # we return it clearly and ensure the watermark is updated.
+                if new_bot_msgs:
+                    last_msg = new_bot_msgs[-1]
                     return {
                         "text": last_msg.get("text"),
                         "attachments": last_msg.get("attachments", []),
@@ -107,12 +108,17 @@ async def send_and_receive(data: SendMessageRequest):
                         "id": last_msg.get("id")
                     }
 
+                # Advance watermark even if no bot message found yet
                 current_watermark = new_watermark
                 await asyncio.sleep(2.0)
 
             raise HTTPException(status_code=408, detail="Bot response timed out")
+
+        except httpx.HTTPStatusError as e:
+            logging.error(f"HTTP Error: {e.response.text}")
+            raise HTTPException(status_code=e.response.status_code, detail="Upstream bot error")
         except Exception as e:
-            logging.error(f"Error: {e}")
+            logging.error(f"General Error: {str(e)}")
             raise HTTPException(status_code=500, detail=str(e))
 
 if __name__ == "__main__":

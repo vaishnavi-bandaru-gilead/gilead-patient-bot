@@ -4,13 +4,13 @@ import doctorImg from "../assets/doctor.png";
 import "../styles/MessageBubble.css";
 
 interface MessageBubbleProps {
-    text?: string | null; // Made optional since a message might only be a card
+    text?: string | null;
     sender: "user" | "bot" | "system";
     timestamp: Date;
     isUser: boolean;
     showAvatar?: boolean;
     isLastBotMessage?: boolean;
-    children?: React.ReactNode; // Added to allow nesting Adaptive Cards
+    children?: React.ReactNode;
 }
 
 const MessageBubble: React.FC<MessageBubbleProps> = ({
@@ -45,18 +45,13 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
             )}
             <div className="msg-content-wrapper" style={{ alignItems: isUser ? "flex-end" : "flex-start" }}>
                 <div className={`msg-bubble ${isUser ? "user-bubble" : "bot-bubble"}`}>
-
-                    {/* Render Text if it exists */}
                     {text && (
                         <div className="msg-text-content">
                             <ReactMarkdown
                                 components={{
                                     a: ({ node, ...props }) => (
                                         <a
-                                            style={{
-                                                color: isUser ? "white" : "#00539B",
-                                                textDecoration: "underline",
-                                            }}
+                                            style={{ color: isUser ? "white" : "#00539B", textDecoration: "underline" }}
                                             {...props}
                                             target="_blank"
                                             rel="noopener noreferrer"
@@ -69,10 +64,7 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
                             </ReactMarkdown>
                         </div>
                     )}
-
-                    {/* Render Adaptive Card or other content here */}
                     {children}
-
                 </div>
                 {!isUser && isLastBotMessage && <div className="msg-time">{formatTime(timestamp)}</div>}
             </div>
