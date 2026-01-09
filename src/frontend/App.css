@@ -14,10 +14,10 @@
 }
 
 .chat-icon img {
-  width: 80px;           /* same value */
-  height: 80px;          /* same value → ensures perfect circle */
-  border-radius: 50%;    /* makes it round */
-  object-fit: cover;     /* prevents stretching or oval effect */
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  object-fit: cover;
   display: block;
 }
 

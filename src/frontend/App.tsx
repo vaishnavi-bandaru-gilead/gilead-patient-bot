@@ -1,7 +1,7 @@
 import React, {useEffect, useState} from "react";
-import ChatIcon from "../src/components/ChatIcon";
-import ChatWindow from "../src/components/ChatWindow";
-import WelcomeBubble from "../src/components/WelcomeBubble";
+import ChatIcon from "./components/ChatIcon.tsx";
+import ChatWindow from "./components/ChatWindow.tsx";
+import WelcomeBubble from "./components/WelcomeBubble.tsx";
 
 import "./App.css";
 
@@ -14,7 +14,6 @@ const App: React.FC = () => {
         setShowBubble(false);
     };
 
-    // Show welcome bubble 10 seconds after chat icon loads
     useEffect(() => {
         const timer = setTimeout(() => {
             if (!open) setShowBubble(true);

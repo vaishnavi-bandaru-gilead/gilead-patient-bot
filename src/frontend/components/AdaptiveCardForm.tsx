@@ -124,10 +124,9 @@ const AdaptiveFormCard: React.FC<Props> = ({ card, onSubmit }) => {
 
                 if (el.type === "ActionSet") {
                     return (
-                        <div key={idx} style={{ display: "flex", gap: "8px", flexWrap: "wrap", marginTop: "5px" }}>
+                        <div className={"action-set-container"} key={idx}>
                             {el.actions.map((act: any, i: number) => (
-                                <button key={i} onClick={() => act.type === "Action.OpenUrl" ? window.open(act.url) : handleSubmit(act.data)}
-                                        style={{ padding: "8px 16px", borderRadius: "20px", cursor: "pointer", fontSize: "0.9em", border: "1px solid #00539B", backgroundColor: "white", color: "#00539B" }}>
+                                <button className={"suggested-action-btn"} key={i} onClick={() => act.type === "Action.OpenUrl" ? window.open(act.url) : handleSubmit(act.data)}>
                                     {act.title}
                                 </button>
                             ))}

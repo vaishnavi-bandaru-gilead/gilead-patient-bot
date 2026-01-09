@@ -3,20 +3,24 @@ import logging
 import asyncio
 import time
 from datetime import datetime, timezone
+import os
 from typing import Optional, List
+
+from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException, Header
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import httpx
 
 # --- CONFIG ---
-DIRECTLINE_SECRET = "abc"
-BASE_URL = "https://unitedstates.directline.botframework.com/v3/directline"
-GLOBAL_URL = "https://directline.botframework.com/v3/directline"
+load_dotenv()
+DIRECTLINE_SECRET = os.getenv("HCP_DIRECTLINE_SECRET")
+BASE_URL = os.getenv("BOT_BASE_URL")
+GLOBAL_URL = os.getenv("BOT_GLOBAL_URL")
 
-BOT_ID = "cbc95bf5-5855-ea17-bf90-006dd26051bf"
-TENANT_ID = "a5a8bcaa-3292-41e6-b735-5e8b21f4dbfd"
-ENV_ID = "a26b9f3d-97e6-e3f0-840c-b199d34fcf0b"
+ENV_ID = os.getenv('COPILOTSTUDIOAGENT__ENVIRONMENTID')
+TENANT_ID = os.getenv("COPILOTSTUDIOAGENT__TENANTID")
+BOT_ID = os.getenv("COPILOTSTUDIOAGENT__BOTID")
 
 app = FastAPI()
 

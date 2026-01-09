@@ -2,8 +2,8 @@ import React, {useEffect, useRef, useState} from "react";
 import "../styles/ChatWindow.css";
 import gillianIntro from "../assets/gillian-intro.png";
 import gileadLogo from "../assets/gilead-logo.png";
-import MessageBubble from "../components/MessageBubble";
-import AdaptiveCardForm from "../components/AdaptiveCardForm";
+import MessageBubble from "./MessageBubble.tsx";
+import AdaptiveCardForm from "./AdaptiveCardForm.tsx";
 
 interface ChatWindowProps { onClose: () => void; }
 type Sender = "user" | "bot" | "system";
@@ -93,6 +93,19 @@ const ChatWindow: React.FC<ChatWindowProps> = ({onClose}) => {
 
     const hasText = inputValue.trim().length > 0;
 
+    const renderActions = (msg: Message) => {
+        if (!msg.suggestedActions || msg.suggestedActions.length === 0) return null;
+        return (
+            <div className="suggested-actions-container" style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginTop: '10px' }}>
+                {msg.suggestedActions.map((action: any, i: number) => (
+                    <button key={i} onClick={() => handleSend(action.value)} className="suggested-action-btn">
+                        {action.title}
+                    </button>
+                ))}
+            </div>
+        );
+    };
+
     return (
         <div className={`chat-container`}>
             <div className={`chat-window-container ${closing ? "closing" : ""}`}>
@@ -118,7 +131,17 @@ const ChatWindow: React.FC<ChatWindowProps> = ({onClose}) => {
                         return (
                             <div key={msg.id}>
                                 {msg.text && (
-                                    <MessageBubble text={msg.text} sender={msg.sender} timestamp={msg.timestamp} isUser={msg.sender === "user"} showAvatar={showAvatar} isLastBotMessage={isLastBotMessage && !adaptiveCard && (!msg.suggestedActions || msg.suggestedActions.length === 0)} />
+                                    <MessageBubble
+                                        text={msg.text}
+                                        sender={msg.sender}
+                                        timestamp={msg.timestamp}
+                                        isUser={msg.sender === "user"}
+                                        showAvatar={showAvatar}
+                                        isLastBotMessage={isLastBotMessage && !adaptiveCard && (!msg.suggestedActions || msg.suggestedActions.length === 0)}
+                                    >
+                                        {/* Actions nested inside text bubble if no card follows */}
+                                        {!adaptiveCard && renderActions(msg)}
+                                    </MessageBubble>
                                 )}
                                 {adaptiveCard && (
                                     <>
@@ -126,18 +149,20 @@ const ChatWindow: React.FC<ChatWindowProps> = ({onClose}) => {
                                             <MessageBubble key={`${msg.id}-b-${bIdx}`} text={block.text} sender="bot" timestamp={msg.timestamp} isUser={false} showAvatar={showAvatar && bIdx === 0 && !msg.text} isLastBotMessage={isLastBotMessage && bIdx === adaptiveCard.content.body.filter((el: any) => el.type === "TextBlock").length - 1 && !adaptiveCard.content.body.some((el: any) => el.type !== "TextBlock")} />
                                         ))}
                                         {adaptiveCard.content.body.some((el: any) => el.type !== "TextBlock") && (
-                                            <MessageBubble text={null} sender="bot" timestamp={msg.timestamp} isUser={false} showAvatar={showAvatar && !msg.text && !adaptiveCard.content.body.some((el: any) => el.type === "TextBlock")} isLastBotMessage={isLastBotMessage && (!msg.suggestedActions || msg.suggestedActions.length === 0)}>
+                                            <MessageBubble
+                                                text={null}
+                                                sender="bot"
+                                                timestamp={msg.timestamp}
+                                                isUser={false}
+                                                showAvatar={showAvatar && !msg.text && !adaptiveCard.content.body.some((el: any) => el.type === "TextBlock")}
+                                                isLastBotMessage={isLastBotMessage && (!msg.suggestedActions || msg.suggestedActions.length === 0)}
+                                            >
                                                 <AdaptiveCardForm card={adaptiveCard.content} onSubmit={(val) => handleSend(val)} />
+                                                {/* Actions nested inside form bubble if card exists */}
+                                                {renderActions(msg)}
                                             </MessageBubble>
                                         )}
                                     </>
-                                )}
-                                {isBot && msg.suggestedActions && msg.suggestedActions.length > 0 && (
-                                    <div className="suggested-actions-container">
-                                        {msg.suggestedActions.map((action: any, i: number) => (
-                                            <button key={i} onClick={() => handleSend(action.value)} className="suggested-action-btn">{action.title}</button>
-                                        ))}
-                                    </div>
                                 )}
                             </div>
                         );

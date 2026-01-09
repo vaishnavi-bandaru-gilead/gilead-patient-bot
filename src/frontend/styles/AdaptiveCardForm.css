@@ -86,3 +86,28 @@
 .adaptive-form-card .afc-submit:hover {
     background: #a51834;
 }
+
+.action-set-container {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-top: 5px;
+}
+
+.suggested-action-btn {
+    padding: 8px 16px;
+    border-radius: 20px;
+    border: 1px solid black;
+    background-color: white;
+    font-size: 0.9em;
+    color: grey;
+    cursor: pointer;
+    outline: none !important;
+    box-shadow: none !important;
+}
+
+.suggested-action-btn:hover {
+    border: 1px solid #C5203F;
+    background-color: #C5203F;
+    color: white;
+}
