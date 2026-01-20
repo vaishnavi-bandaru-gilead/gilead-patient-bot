@@ -1,0 +1,27 @@
+.chat-icon {
+    position: absolute;
+    bottom: 20px;
+    right: 20px;
+    cursor: pointer;
+    z-index: 1000;
+    border-radius: 50%;
+    background: #c5244b;
+    padding: 8px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0);
+    transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+    box-sizing: border-box;
+}
+
+.chat-icon img {
+    width: 60px;
+    height: 60px;
+    border-radius: 50%;
+    object-fit: cover;
+    display: block;
+}
+
+.chat-icon:hover {
+    border: 1px solid #c5244b;
+    transform: translate(2px, 2px) scale(1.09);
+    box-shadow: 0 6px 14px rgba(0,0,0,0);
+}

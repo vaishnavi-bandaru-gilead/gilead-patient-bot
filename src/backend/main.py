@@ -35,7 +35,9 @@ class SendMessageRequest(BaseModel):
     conversationId: str
     token: str
     message: str
+    userId: str
     watermark: Optional[str] = None
+    context: Optional[dict] = None
 
 @app.post("/api/session/start")
 async def start_session():
@@ -52,13 +54,12 @@ async def send_and_receive(data: SendMessageRequest):
         "Content-Type": "application/json"
     }
 
-    # 1. MARK START TIME to avoid "Previous Response" lag/caching
     poll_start_time = datetime.now(timezone.utc)
 
     post_url = f"{BASE_URL}/conversations/{data.conversationId}/activities"
     activity_payload = {
         "type": "message",
-        "from": {"id": "1f56e39b-21f4-4c0b-8761-b100c6190448", "role": "user"},
+        "from": {"id": data.userId, "role": "user"},
         "text": data.message,
         "textFormat": "plain",
         "locale": "en",
@@ -68,22 +69,21 @@ async def send_and_receive(data: SendMessageRequest):
         "cci_environment_id": ENV_ID,
         "channelData": {
             "cci_trace_id": uuid.uuid4().hex[:5],
-            "clientActivityID": uuid.uuid4().hex[:10]
+            "clientActivityID": uuid.uuid4().hex[:10],
+            "pva_context": data.context
         }
     }
 
     async with httpx.AsyncClient(timeout=80.0) as client:
         try:
-            # Send the user's message
             send_res = await client.post(post_url, json=activity_payload, headers=auth_headers)
             send_res.raise_for_status()
 
-            # 2. POLL for Bot Response
             current_watermark = data.watermark
             get_url = f"{GLOBAL_URL}/conversations/{data.conversationId}/activities"
 
             start_loop = time.time()
-            while (time.time() - start_loop) < 65: # 65 second max wait
+            while (time.time() - start_loop) < 65:
                 params = {"watermark": current_watermark} if current_watermark else {}
                 get_res = await client.get(get_url, headers=auth_headers, params=params)
                 get_res.raise_for_status()
@@ -92,11 +92,9 @@ async def send_and_receive(data: SendMessageRequest):
                 activities = resp_data.get("activities", [])
                 new_watermark = resp_data.get("watermark")
 
-                # Filter for bot activities created AFTER we sent our message
                 new_bot_msgs = []
                 for a in activities:
                     if a.get("from", {}).get("role") == "bot":
-                        # Convert bot timestamp to UTC for comparison
                         a_time = datetime.fromisoformat(a.get("timestamp").replace("Z", "+00:00"))
                         if a_time >= poll_start_time:
                             new_bot_msgs.append(a)
@@ -112,7 +110,6 @@ async def send_and_receive(data: SendMessageRequest):
                         "id": last_msg.get("id")
                     }
 
-                # Advance watermark even if no bot message found yet
                 current_watermark = new_watermark
                 await asyncio.sleep(2.0)
 

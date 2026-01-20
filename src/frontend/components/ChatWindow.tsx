@@ -1,15 +1,30 @@
-import React, {useEffect, useRef, useState} from "react";
+import React, { useEffect, useRef, useState } from "react";
 import "../styles/ChatWindow.css";
 import gillianIntro from "../assets/gillian-intro.png";
-import gileadLogo from "../assets/gilead-logo.png";
+import { v4 as uuidv4 } from 'uuid';
 import MessageBubble from "./MessageBubble.tsx";
 import AdaptiveCardForm from "./AdaptiveCardForm.tsx";
+import ChatHeader from "./ChatHeader.tsx";
+import { PaperPlaneTilt } from 'phosphor-react';
 
-interface ChatWindowProps { onClose: () => void; }
+interface ChatWindowProps {
+    onClose: () => void;
+    onMinimize: () => void;
+    isMinimized: boolean;
+}
+
 type Sender = "user" | "bot" | "system";
-interface Message { id: string; text?: string | null; sender: Sender; timestamp: Date; attachments?: any[]; suggestedActions?: any[]; }
+interface Message {
+    id: string;
+    text?: string | null;
+    sender: Sender;
+    timestamp: Date;
+    attachments?: any[];
+    suggestedActions?: any[];
+}
 
-const ChatWindow: React.FC<ChatWindowProps> = ({onClose}) => {
+const ChatWindow: React.FC<ChatWindowProps> = ({ onClose, onMinimize, isMinimized }) => {
+    const [isMaximized, setIsMaximized] = useState(false);
     const [closing, setClosing] = useState(false);
     const [inputValue, setInputValue] = useState("");
     const [loading, setLoading] = useState(false);
@@ -23,12 +38,41 @@ const ChatWindow: React.FC<ChatWindowProps> = ({onClose}) => {
         timestamp: new Date(),
     }]);
 
+    const getUserId = () => {
+        let id = localStorage.getItem('bot_user_id');
+        if (!id) {
+            id = `dl_${uuidv4()}`;
+            localStorage.setItem('bot_user_id', id);
+        }
+        return id;
+    };
+
     const chatBodyRef = useRef<HTMLDivElement>(null);
     const sessionStartedRef = useRef(false);
+    const [telemetry, setTelemetry] = useState<any>(null);
+
+    useEffect(() => {
+        const getTelemetry = async () => {
+            try {
+                const geoRes = await fetch('https://ipapi.co/json/');
+                const geoData = await geoRes.json();
+                setTelemetry({
+                    country: geoData.country_name,
+                    city: geoData.city,
+                    browser: navigator.userAgent,
+                    platform: navigator.platform,
+                    source: new URLSearchParams(window.location.search).get('utm_source') || document.referrer || "Direct"
+                });
+            } catch (err) {
+                console.error("Telemetry capture failed", err);
+            }
+        };
+        getTelemetry();
+    }, []);
 
     const startSession = async () => {
         try {
-            const res = await fetch("http://localhost:8000/api/session/start", {method: "POST"});
+            const res = await fetch("http://localhost:8000/api/session/start", { method: "POST" });
             const data = await res.json();
             setConversationId(data.conversationId);
             setToken(data.token);
@@ -61,8 +105,16 @@ const ChatWindow: React.FC<ChatWindowProps> = ({onClose}) => {
         try {
             const res = await fetch("http://localhost:8000/api/session/send", {
                 method: "POST",
-                headers: {"Content-Type": "application/json"},
-                body: JSON.stringify({ conversationId, token, message: textToSend, watermark, value: isCardSubmit ? customValue : null }),
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    conversationId,
+                    token,
+                    message: textToSend,
+                    watermark,
+                    userId: getUserId(),
+                    value: isCardSubmit ? customValue : null,
+                    context: telemetry
+                }),
             });
 
             const data = await res.json();
@@ -96,7 +148,7 @@ const ChatWindow: React.FC<ChatWindowProps> = ({onClose}) => {
     const renderActions = (msg: Message) => {
         if (!msg.suggestedActions || msg.suggestedActions.length === 0) return null;
         return (
-            <div className="suggested-actions-container" style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginTop: '10px' }}>
+            <div className="suggested-actions-container">
                 {msg.suggestedActions.map((action: any, i: number) => (
                     <button key={i} onClick={() => handleSend(action.value)} className="suggested-action-btn">
                         {action.title}
@@ -107,18 +159,18 @@ const ChatWindow: React.FC<ChatWindowProps> = ({onClose}) => {
     };
 
     return (
-        <div className={`chat-container`}>
+        <div className={`chat-container 
+            ${isMaximized ? "is-maximized" : "is-minimized"} 
+            ${isMinimized ? "is-hidden" : "is-visible"}
+        `}>
             <div className={`chat-window-container ${closing ? "closing" : ""}`}>
-                <div className="chat-header">
-                    <div className="chat-header-icons">
-                        <span className="header-icon-1">⤡</span>
-                        <button className="header-icon-btn" onClick={handleClose}>—</button>
-                    </div>
-                    <img src={gileadLogo} alt="Gilead logo" className="gilead-logo"/>
-                    <div className="chat-header-icons">
-                        <span className="header-icon menu">⋮</span>
-                    </div>
-                </div>
+                <ChatHeader
+                    isMaximized={isMaximized}
+                    onToggleMaximize={() => setIsMaximized(!isMaximized)}
+                    onMinimize={onMinimize}
+                    onClose={handleClose}
+                />
+
                 <div className="chat-body" ref={chatBodyRef}>
                     <div className="welcome-banner"><img src={gillianIntro} className="banner-avatar" alt="avatar"/></div>
                     <hr className="divider"/>
@@ -139,7 +191,6 @@ const ChatWindow: React.FC<ChatWindowProps> = ({onClose}) => {
                                         showAvatar={showAvatar}
                                         isLastBotMessage={isLastBotMessage && !adaptiveCard && (!msg.suggestedActions || msg.suggestedActions.length === 0)}
                                     >
-                                        {/* Actions nested inside text bubble if no card follows */}
                                         {!adaptiveCard && renderActions(msg)}
                                     </MessageBubble>
                                 )}
@@ -158,7 +209,6 @@ const ChatWindow: React.FC<ChatWindowProps> = ({onClose}) => {
                                                 isLastBotMessage={isLastBotMessage && (!msg.suggestedActions || msg.suggestedActions.length === 0)}
                                             >
                                                 <AdaptiveCardForm card={adaptiveCard.content} onSubmit={(val) => handleSend(val)} />
-                                                {/* Actions nested inside form bubble if card exists */}
                                                 {renderActions(msg)}
                                             </MessageBubble>
                                         )}
@@ -170,8 +220,23 @@ const ChatWindow: React.FC<ChatWindowProps> = ({onClose}) => {
                     {loading && <div className="msg-row bot-row"><div className="msg-avatar-container"><div className="typing-indicator"><span>.</span><span>.</span><span>.</span></div></div></div>}
                 </div>
                 <div className="chat-input">
-                    <input type="text" id="chatInput" placeholder="Type your question here" value={inputValue} onChange={(e) => setInputValue(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handleSend()} />
-                    <button className={`send-btn ${hasText ? "active" : ""}`} disabled={!hasText} onClick={() => handleSend()}>➣</button>
+                    <input
+                        type="text"
+                        id="chatInput"
+                        placeholder="Type your question here"
+                        value={inputValue}
+                        onChange={(e) => setInputValue(e.target.value)}
+                        onKeyDown={(e) => e.key === 'Enter' && handleSend()}
+                    />
+
+                    <button
+                        className={`send-btn ${hasText ? "active" : ""}`}
+                        disabled={!hasText}
+                        onClick={() => handleSend()}
+                        aria-label="Send"
+                    >
+                        <PaperPlaneTilt size={22}/>
+                    </button>
                 </div>
                 <div className="chat-footer">
                     <span className="footer-caret">›</span> Privacy Statement

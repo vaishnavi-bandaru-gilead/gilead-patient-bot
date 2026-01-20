@@ -1,7 +1,7 @@
 .welcome-bubble {
     position: fixed;
-    bottom: 170px;          /* height of bubble above icon */
-    right: 20px;            /* aligned with icon */
+    bottom: 130px;
+    right: 20px;
     background: white;
     padding: 16px 20px;
     width: 300px;
@@ -12,7 +12,7 @@
     transition: all 0.35s ease;
     z-index: 1200;
     pointer-events: none;
-    border: 2px solid #c6cac6;
+    border: 1px solid #c6cac6;
     cursor: pointer;
 }
 
@@ -63,24 +63,16 @@
     transform: rotate(-45deg);
 }
 
-/* When visible */
 .welcome-wrapper.show .welcome-close {
     opacity: 1;
     transform: scale(1);
 }
 
-/* Hover */
 .welcome-close:hover {
-    transform: scale(1.0);
-    border: 2px solid #c6cac6;
-}
-
-
-.welcome-close:hover {
-    transform: translate(2px, 2px) scale(1.0); /* <-- moves down-right */
+    border: 1px solid rgba(128, 129, 128, 0.71);
+    transform: translate(1px, 1px) scale(0.8);
     box-shadow: 0 6px 14px rgba(0,0,0,0);
 }
-
 
 .welcome-bubble p {
     margin: 0;

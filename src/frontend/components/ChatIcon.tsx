@@ -1,5 +1,5 @@
 import React from "react";
-// import "./ChatIcon.css";
+import "../styles/ChatIcon.css";
 import "../App.css"
 import doctorImg from "../assets/doctor.png";
 
