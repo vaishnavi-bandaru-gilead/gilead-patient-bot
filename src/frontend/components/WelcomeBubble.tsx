@@ -1,4 +1,3 @@
-import React from "react";
 import "../styles/WelcomeBubble.css";
 
 interface WelcomeBubbleProps {

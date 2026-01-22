@@ -82,7 +82,7 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ onClose, onMinimize, isMinimize
     useEffect(() => {
         if (!sessionStartedRef.current) {
             sessionStartedRef.current = true;
-            startSession();
+            startSession().then(r => console.log("Session started", r));
         }
     }, []);
 
@@ -90,14 +90,32 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ onClose, onMinimize, isMinimize
         if (!customValue && !inputValue.trim()) return;
         if (!conversationId || !token) return;
 
-        const isCardSubmit = typeof customValue === 'object' && customValue !== null;
-        const textToSend = typeof customValue === 'string' ? customValue : (isCardSubmit ? "" : inputValue);
+        const isComplexSubmit = typeof customValue === 'object' && customValue !== null && 'data' in customValue;
+
+        let textToShow = "";
+        let dataToBackend = null;
+
+        if (isComplexSubmit) {
+            textToShow = customValue?.title || "";
+            dataToBackend = customValue?.data;
+        } else if (typeof customValue === 'object') {
+            textToShow = "";
+            dataToBackend = customValue;
+        } else {
+            textToShow = customValue || inputValue;
+            dataToBackend = null;
+        }
 
         if (!customValue) setInputValue("");
         setLoading(true);
 
-        if (textToSend) {
-            setMessages(prev => [...prev, { id: Date.now().toString(), text: textToSend, sender: 'user', timestamp: new Date() }]);
+        if (textToShow) {
+            setMessages(prev => [...prev, {
+                id: Date.now().toString(),
+                text: textToShow,
+                sender: 'user',
+                timestamp: new Date()
+            }]);
         }
 
         setMessages(prev => prev.map(m => ({ ...m, suggestedActions: [] })));
@@ -109,10 +127,10 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ onClose, onMinimize, isMinimize
                 body: JSON.stringify({
                     conversationId,
                     token,
-                    message: textToSend,
+                    message: textToShow,
                     watermark,
                     userId: getUserId(),
-                    value: isCardSubmit ? customValue : null,
+                    value: dataToBackend,
                     context: telemetry
                 }),
             });
@@ -208,8 +226,10 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ onClose, onMinimize, isMinimize
                                                 showAvatar={showAvatar && !msg.text && !adaptiveCard.content.body.some((el: any) => el.type === "TextBlock")}
                                                 isLastBotMessage={isLastBotMessage && (!msg.suggestedActions || msg.suggestedActions.length === 0)}
                                             >
-                                                <AdaptiveCardForm card={adaptiveCard.content} onSubmit={(val) => handleSend(val)} />
-                                                {renderActions(msg)}
+                                                <AdaptiveCardForm
+                                                    card={adaptiveCard.content}
+                                                    onSubmit={(formValues) => handleSend(formValues)} />
+                                                    {renderActions(msg)}
                                             </MessageBubble>
                                         )}
                                     </>

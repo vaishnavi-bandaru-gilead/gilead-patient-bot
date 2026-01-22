@@ -1,7 +1,7 @@
-import React from "react";
 import ReactMarkdown from "react-markdown";
 import doctorImg from "../assets/doctor.png";
 import "../styles/MessageBubble.css";
+import React from "react";
 
 interface MessageBubbleProps {
     text?: string | null;

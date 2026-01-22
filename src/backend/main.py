@@ -34,10 +34,11 @@ app.add_middleware(
 class SendMessageRequest(BaseModel):
     conversationId: str
     token: str
-    message: str
+    message: Optional[str] = ""
     userId: str
     watermark: Optional[str] = None
     context: Optional[dict] = None
+    value: Optional[dict] = None
 
 @app.post("/api/session/start")
 async def start_session():
@@ -61,6 +62,7 @@ async def send_and_receive(data: SendMessageRequest):
         "type": "message",
         "from": {"id": data.userId, "role": "user"},
         "text": data.message,
+        "value": data.value,
         "textFormat": "plain",
         "locale": "en",
         "channelId": "webchat",

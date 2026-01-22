@@ -40,19 +40,17 @@
     justify-content: center;
     align-items: center;
 
-    /*opacity: 0;*/
     transform: scale(0.8);
     transition: opacity 0.35s ease, transform 0.15s ease;
 }
 
-/* Red X lines */
 .welcome-close::before,
 .welcome-close::after {
     content: "";
     position: absolute;
     width: 15px;
-    height: 1px;                /* thickness */
-    background-color: #e53935;  /* red */
+    height: 1px;
+    background-color: #e53935;
 }
 
 .welcome-close::before {
