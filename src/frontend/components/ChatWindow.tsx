@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import "../styles/ChatWindow.css";
 import gillianIntro from "../assets/gillian-intro.png";
 import { v4 as uuidv4 } from 'uuid';
@@ -6,6 +6,9 @@ import MessageBubble from "./MessageBubble.tsx";
 import AdaptiveCardForm from "./AdaptiveCardForm.tsx";
 import ChatHeader from "./ChatHeader.tsx";
 import { PaperPlaneTilt } from 'phosphor-react';
+import PrivacyCard from "./PrivacyCard.tsx";
+import { useSessionCountdown } from "../hooks/sessionTimeout.tsx";
+import SessionTimeOutModal from "./sessionTimeOutModal.tsx";
 
 interface ChatWindowProps {
     onClose: () => void;
@@ -37,6 +40,11 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ onClose, onMinimize, isMinimize
         sender: 'bot',
         timestamp: new Date(),
     }]);
+    const [showBanner, setShowBanner] = useState(() => {
+        return localStorage.getItem("privacyPopUp") !== "accepted";
+    });    
+    const [isPrivacyBannerOpen, setIsPrivacyBannerOpen] = useState( showBanner && true);
+    const [showSessionPopUp, setShowSessionPopUp] = useState<boolean>(false);
 
     const getUserId = () => {
         let id = localStorage.getItem('bot_user_id');
@@ -176,6 +184,22 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ onClose, onMinimize, isMinimize
         );
     };
 
+    const handleTimeout = useCallback(() => {
+      setClosing(true);
+      onMinimize();
+      localStorage.clear();
+    }, [onMinimize]);
+
+    const handlePopup = useCallback(() => {
+      setShowSessionPopUp(true);
+    }, []);
+
+    const { remainingSeconds, reset } = useSessionCountdown({
+      onTimeout: handleTimeout,
+      onPopup: handlePopup,
+      enabled: !isMinimized
+    });
+
     return (
         <div className={`chat-container 
             ${isMaximized ? "is-maximized" : "is-minimized"} 
@@ -188,8 +212,10 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ onClose, onMinimize, isMinimize
                     onMinimize={onMinimize}
                     onClose={handleClose}
                 />
+                {isPrivacyBannerOpen && <div style={{background: "rgba(38, 51, 63, 0.6)", height:"100%", width: "100%", position: "absolute", zIndex: 10}}/>}
+                {showSessionPopUp && <SessionTimeOutModal onContinue={() => { setShowSessionPopUp(false); reset(); }} remainingSeconds={remainingSeconds} />}
 
-                <div className="chat-body" ref={chatBodyRef}>
+                <div className="chat-body" ref={chatBodyRef} >
                     <div className="welcome-banner"><img src={gillianIntro} className="banner-avatar" alt="avatar"/></div>
                     <hr className="divider"/>
                     {messages.map((msg, index) => {
@@ -247,19 +273,20 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ onClose, onMinimize, isMinimize
                         value={inputValue}
                         onChange={(e) => setInputValue(e.target.value)}
                         onKeyDown={(e) => e.key === 'Enter' && handleSend()}
+                        disabled = {isPrivacyBannerOpen || showSessionPopUp}
                     />
 
                     <button
                         className={`send-btn ${hasText ? "active" : ""}`}
-                        disabled={!hasText}
+                        disabled={!hasText || isPrivacyBannerOpen || showSessionPopUp}
                         onClick={() => handleSend()}
                         aria-label="Send"
                     >
                         <PaperPlaneTilt size={22}/>
                     </button>
                 </div>
-                <div className="chat-footer">
-                    <span className="footer-caret">›</span> Privacy Statement
+                <div style={isPrivacyBannerOpen ? {marginTop: "-30%", zIndex: 11} : {zIndex: 11}}>
+                    <PrivacyCard isOpen={isPrivacyBannerOpen} onAccept={() => {setShowBanner(false); setIsPrivacyBannerOpen(false)}} showBanner={showBanner} setIsPrivacyBannerOpen={setIsPrivacyBannerOpen} onReject={onMinimize}/>
                 </div>
             </div>
         </div>

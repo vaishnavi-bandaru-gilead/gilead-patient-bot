@@ -1,0 +1,76 @@
+/* Privacy Card Container */
+.privacy-card-container {
+  display: flex;
+  flex-direction: column;
+  background-color: white;
+}
+
+/* Privacy Card Header */
+.privacy-card-header {
+  display: flex;
+  align-items: center;
+  background-color: #c5203f;
+  font-size: 20px;
+  font-family: "Open Sans", sans-serif;
+}
+
+/* Privacy Card Icon Button */
+.privacy-card-icon-button {
+  color: white;
+}
+
+.privacy-card-icon-button:focus,
+.privacy-card-icon-button:focus-visible {
+  outline: none;
+  background-color: transparent;
+}
+
+/* Privacy Card Content */
+.privacy-card-content {
+  padding: 25px;
+  color: #181818;
+  background-color: white;
+  text-align: justify;
+}
+
+/* Privacy Card Text */
+.privacy-card-text {
+  font-size: 18px;
+  font-family: "Open Sans", sans-serif;
+}
+
+/* Privacy Card Footer */
+.privacy-card-footer {
+  text-align: right;
+  font-size: 10px;
+  padding-top: 20px;
+}
+
+/* Privacy Card Actions */
+.privacy-card-actions {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+}
+
+/* Privacy Card Continue Button */
+.privacy-card-continue-btn {
+  border-radius: 16px;
+  background-color: var(--gilead-primary);
+}
+
+/* Privacy Card Exit Button */
+.privacy-card-exit-btn {
+  border-radius: 16px;
+  color: black;
+  border-color: black;
+}
+
+.privacy-card-exit-btn:hover {
+  border-color: black;
+}
+
+.privacy-card-exit-btn:focus {
+  outline: none;
+}

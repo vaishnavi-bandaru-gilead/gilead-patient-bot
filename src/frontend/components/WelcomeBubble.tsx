@@ -1,4 +1,5 @@
 import "../styles/WelcomeBubble.css";
+import { textConstants } from "../constants";
 
 interface WelcomeBubbleProps {
     visible: boolean;
@@ -9,7 +10,7 @@ const WelcomeBubble: React.FC<WelcomeBubbleProps> = ({ visible, onClose }) => {
     return (
         <div className={`welcome-bubble ${visible ? "show" : ""}`}>
             <button className="welcome-close" onClick={onClose}></button>
-            <p>I can answer your questions about Gilead medications.</p>
+            <p>{textConstants.WELCOME_TEXT}</p>
         </div>
     );
 };
