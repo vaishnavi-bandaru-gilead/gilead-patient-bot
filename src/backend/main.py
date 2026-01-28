@@ -1,26 +1,23 @@
 import uuid
 import logging
 import asyncio
-import time
-from datetime import datetime, timezone
+import json
 import os
-from typing import Optional, List
-
-from dotenv import load_dotenv
-from fastapi import FastAPI, HTTPException, Header
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException, Body
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
+from typing import Optional
 import httpx
+import websockets as ws_lib
+from dotenv import load_dotenv
 
-# --- CONFIG ---
 load_dotenv()
 DIRECTLINE_SECRET = os.getenv("HCP_DIRECTLINE_SECRET")
-BASE_URL = os.getenv("BOT_BASE_URL")
 GLOBAL_URL = os.getenv("BOT_GLOBAL_URL")
-
-ENV_ID = os.getenv('COPILOTSTUDIOAGENT__ENVIRONMENTID')
-TENANT_ID = os.getenv("COPILOTSTUDIOAGENT__TENANTID")
+BASE_URL = os.getenv("BOT_BASE_URL")
 BOT_ID = os.getenv("COPILOTSTUDIOAGENT__BOTID")
+TENANT_ID = os.getenv("COPILOTSTUDIOAGENT__TENANTID")
+ENV_ID = os.getenv('COPILOTSTUDIOAGENT__ENVIRONMENTID')
 
 app = FastAPI()
 
@@ -31,34 +28,56 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-class SendMessageRequest(BaseModel):
+active_streams = {}
+
+class MessagePayload(BaseModel):
     conversationId: str
     token: str
-    message: Optional[str] = ""
     userId: str
-    watermark: Optional[str] = None
-    context: Optional[dict] = None
+    message: Optional[str] = ""
     value: Optional[dict] = None
+    context: Optional[dict] = None
 
-@app.post("/api/session/start")
-async def start_session():
+@app.websocket("/api/session/chat")
+async def websocket_stream(websocket: WebSocket):
+    await websocket.accept()
+
     headers = {"Authorization": f"Bearer {DIRECTLINE_SECRET}"}
-    async with httpx.AsyncClient() as client:
-        resp = await client.post(f"{GLOBAL_URL}/conversations", headers=headers)
-        resp.raise_for_status()
-        return resp.json()
+    async with httpx.AsyncClient() as http_client:
+
+        resp = await http_client.post(f"{GLOBAL_URL}/conversations", headers=headers)
+        session_info = resp.json()
+        print("session_info:", session_info)
+
+        conv_id = session_info.get("conversationId")
+        token = session_info.get("token")
+        stream_url = session_info.get("streamUrl")
+
+        await websocket.send_json({
+            "type": "session_started",
+            "conversationId": conv_id,
+            "token": token
+        })
+
+        async with ws_lib.connect(stream_url) as bot_ws:
+            try:
+                async for message in bot_ws:
+                    data = json.loads(message)
+                    for act in data.get("activities", []):
+                        if act.get("from", {}).get("role") == "bot":
+                            await websocket.send_json({
+                                "type": "bot_response",
+                                "text": act.get("text"),
+                                "attachments": act.get("attachments", []),
+                                "suggestedActions": act.get("suggestedActions", {}).get("actions", []),
+                                "id": act.get("id")
+                            })
+            except WebSocketDisconnect:
+                logging.info(f"WebSocket closed for {conv_id}")
 
 @app.post("/api/session/send")
-async def send_and_receive(data: SendMessageRequest):
-    auth_headers = {
-        "Authorization": f"Bearer {data.token}",
-        "Content-Type": "application/json"
-    }
-
-    poll_start_time = datetime.now(timezone.utc)
-
-    post_url = f"{BASE_URL}/conversations/{data.conversationId}/activities"
-    activity_payload = {
+async def send_message(data: MessagePayload):
+    payload = {
         "type": "message",
         "from": {"id": data.userId, "role": "user"},
         "text": data.message,
@@ -70,59 +89,20 @@ async def send_and_receive(data: SendMessageRequest):
         "cci_tenant_id": TENANT_ID,
         "cci_environment_id": ENV_ID,
         "channelData": {
-            "cci_trace_id": uuid.uuid4().hex[:5],
+            "pva_context": data.context,
             "clientActivityID": uuid.uuid4().hex[:10],
-            "pva_context": data.context
+            "cci_trace_id": uuid.uuid4().hex[:5]
         }
     }
 
-    async with httpx.AsyncClient(timeout=80.0) as client:
-        try:
-            send_res = await client.post(post_url, json=activity_payload, headers=auth_headers)
-            send_res.raise_for_status()
+    headers = {"Authorization": f"Bearer {data.token}"}
+    post_url = f"{BASE_URL}/conversations/{data.conversationId}/activities"
 
-            current_watermark = data.watermark
-            get_url = f"{GLOBAL_URL}/conversations/{data.conversationId}/activities"
-
-            start_loop = time.time()
-            while (time.time() - start_loop) < 65:
-                params = {"watermark": current_watermark} if current_watermark else {}
-                get_res = await client.get(get_url, headers=auth_headers, params=params)
-                get_res.raise_for_status()
-
-                resp_data = get_res.json()
-                activities = resp_data.get("activities", [])
-                new_watermark = resp_data.get("watermark")
-
-                new_bot_msgs = []
-                for a in activities:
-                    if a.get("from", {}).get("role") == "bot":
-                        a_time = datetime.fromisoformat(a.get("timestamp").replace("Z", "+00:00"))
-                        if a_time >= poll_start_time:
-                            new_bot_msgs.append(a)
-
-                if new_bot_msgs:
-                    last_msg = new_bot_msgs[-1]
-                    return {
-                        "text": last_msg.get("text"),
-                        "attachments": last_msg.get("attachments", []),
-                        "suggestedActions": last_msg.get("suggestedActions", {}).get("actions", []),
-                        "watermark": new_watermark,
-                        "conversationId": data.conversationId,
-                        "id": last_msg.get("id")
-                    }
-
-                current_watermark = new_watermark
-                await asyncio.sleep(2.0)
-
-            raise HTTPException(status_code=408, detail="Bot response timed out")
-
-        except httpx.HTTPStatusError as e:
-            logging.error(f"HTTP Error: {e.response.text}")
-            raise HTTPException(status_code=e.response.status_code, detail="Upstream bot error")
-        except Exception as e:
-            logging.error(f"General Error: {str(e)}")
-            raise HTTPException(status_code=500, detail=str(e))
+    async with httpx.AsyncClient() as client:
+        resp = await client.post(post_url, json=payload, headers=headers)
+        if resp.status_code != 202:
+            raise HTTPException(status_code=resp.status_code, detail="Failed to send activity")
+        return {"status": "sent"}
 
 if __name__ == "__main__":
     import uvicorn
