@@ -33,7 +33,7 @@ const SessionTimeOutModal = ({
       >
         <Typography
           mb={2}
-          fontSize={18}
+          fontSize={17}
           color="textPrimary"
           fontFamily="Open Sans, sans-serif"
         >

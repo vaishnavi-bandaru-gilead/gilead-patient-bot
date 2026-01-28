@@ -1,7 +1,7 @@
 import React from "react";
 import "../styles/ChatIcon.css";
 import "../App.css"
-import doctorImg from "../assets/doctor.png";
+import doctorImg from "../assets/patient-bot-icon.png";
 
 interface ChatIconProps {
     onClick: () => void;

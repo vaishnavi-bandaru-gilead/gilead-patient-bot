@@ -1,6 +1,6 @@
 body {
     font-family: "Open Sans", sans-serif;
-    font-size: 14px;
+    font-size: 17px;
     margin: 0;
     padding: 0;
     box-sizing: border-box;
@@ -112,7 +112,7 @@ input {
 }
 
 .banner-text h3 {
-    font-size: 18px;
+    font-size: 17px;
     margin: 0;
     color: #b11117;
 }
@@ -130,7 +130,8 @@ input {
     padding: 16px;
     flex: 1;
     overflow-y: auto;
-    background: white;
+    background: white; /*for hcp bot*/
+    /*background: #F4F4F4;*/
     transition: padding 0.4s ease;
 }
 
@@ -185,7 +186,7 @@ input {
     width: 40px;
     height: 40px;
     border-radius: 50%;
-    font-size: 18px;
+    font-size: 17px;
     cursor: pointer;
     display: flex;
     align-items: center;

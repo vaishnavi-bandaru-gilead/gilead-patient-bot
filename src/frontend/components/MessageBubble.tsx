@@ -1,5 +1,5 @@
 import ReactMarkdown from "react-markdown";
-import doctorImg from "../assets/doctor.png";
+import doctorImg from "../assets/patient-bot-icon.png";
 import "../styles/MessageBubble.css";
 import React from "react";
 

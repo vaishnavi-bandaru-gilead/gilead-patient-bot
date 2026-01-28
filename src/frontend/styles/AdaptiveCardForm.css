@@ -4,12 +4,13 @@
     padding: 24px;
     box-shadow: 0 8px 20px rgba(0, 0, 0, 0.08);
     max-width: 100%;
+    font-size: 17px;
     font-family: "Open Sans", Arial, sans-serif;
 }
 
 .adaptive-form-card .afc-text {
     margin: 0 0 12px;
-    font-size: 16px;
+    font-size: 17px;
     line-height: 1.4;
     color: #1e1e1e;
 }
@@ -30,13 +31,13 @@
     box-sizing: border-box;
     padding: 10px;
     border-radius: 6px;
-    font-size: 16px;
+    font-size: 17px;
     font-family: inherit;
 }
 
 .adaptive-form-card .afc-label {
     display: block;
-    font-size: 15px;
+    font-size: 17px;
     color: #1e1e1e;
     margin-bottom: 6px;
 }
@@ -52,7 +53,7 @@
     padding: 10px 12px;
     border-radius: 4px;
     border: 1px solid #c4c4c4;
-    font-size: 16px;
+    font-size: 17px;
     font-family: inherit;
 }
 
@@ -80,7 +81,7 @@
     border: none;
     background: #c5203f;
     color: #ffffff;
-    font-size: 16px;
+    font-size: 17px;
     font-weight: 600;
     cursor: pointer;
 }
@@ -101,7 +102,7 @@
     border-radius: 20px;
     border: 1px solid black;
     background-color: white;
-    font-size: 0.9em;
+    font-size: 17px;
     color: grey;
     cursor: pointer;
     outline: none !important;

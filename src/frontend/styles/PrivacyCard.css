@@ -10,7 +10,7 @@
   display: flex;
   align-items: center;
   background-color: #c5203f;
-  font-size: 20px;
+  font-size: 17px;
   font-family: "Open Sans", sans-serif;
 }
 
@@ -35,14 +35,14 @@
 
 /* Privacy Card Text */
 .privacy-card-text {
-  font-size: 18px;
+  font-size: 17px;
   font-family: "Open Sans", sans-serif;
 }
 
 /* Privacy Card Footer */
 .privacy-card-footer {
   text-align: right;
-  font-size: 10px;
+  font-size: 17px;
   padding-top: 20px;
 }
 

@@ -50,7 +50,7 @@ const PrivacyCard = ({
           alignItems="center"
           sx={{
             background: "#C5203F",
-            fontSize: 20,
+            fontSize: 17,
             fontFamily: "Open Sans, sans-serif",
           }}
         >
@@ -79,7 +79,7 @@ const PrivacyCard = ({
             textAlign={"justify"}
           >
             <Typography
-              sx={{ fontSize: 18, fontFamily: "Open Sans, sans-serif" }}
+              sx={{ fontSize: 17, fontFamily: "Open Sans, sans-serif" }}
             >
               {renderWithLink(textConstants.PRIVACY_TEXT, "Privacy Statement")}
             </Typography>

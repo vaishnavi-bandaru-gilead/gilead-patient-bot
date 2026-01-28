@@ -7,15 +7,18 @@
 
 .msg-avatar {
     width: 36px;
-    border-radius: 50%;
+    border-radius: 80%;
+    background: #3C587F;
+    padding: 2px 0 0 0;
+    box-shadow: 8px 8px 16px rgba(0, 0, 0, 0.2);
 }
 
 .msg-bubble {
     background: white;
     padding: 10px;
     margin-left: 8px;
-    font-size: 15px;
-    border-radius: 0px 12px 12px 12px;
+    font-size: 17px;
+    border-radius: 0 12px 12px 12px;
     box-shadow: rgba(0, 0, 0, 0.2) 0 4px 10px 0;
     margin-bottom: 12px;
     font-family: "Open Sans", sans-serif;
@@ -24,9 +27,10 @@
 .bot-bubble {
     display: inline-block;
     margin-inline-start: 5px;
-    background-color: white;
-    color: black;
-    font-size: 15px;
+    /*background: white; !*for hcp bot*!*/
+    background: #F4F4F4;
+    color: #1E1E1E;
+    font-size: 17px;
     border-top-left-radius: 2px;
     /*font-family: "Open Sans", sans-serif;*/
     font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
@@ -39,8 +43,10 @@
 }
 
 .user-bubble {
-    background-color: #c5203f;
-    color: white;
+    /*background-color: #c5203f; !*for hcp bot*!*/
+    /*color: white; !*for hcp bot*!*/
+    background-color: #3C587F;
+    color: #FFFFFF;
     text-align: start;
     border-start-start-radius: 10px;
     border-start-end-radius: 0;
@@ -48,7 +54,7 @@
     border-end-end-radius: 10px;
     /*font-family: "Open Sans", sans-serif;*/
     font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
-    font-size: 15px;
+    font-size: 17px;
     width: fit-content;
     max-width: 100%;
     margin-left: auto;

@@ -1,6 +1,6 @@
 import React, {useCallback,useEffect, useRef, useState} from "react";
 import "../styles/ChatWindow.css";
-import gillianIntro from "../assets/gillian-intro.png";
+import gillianIntro from "../assets/patient-bot-intro.png";
 import {v4 as uuidv4} from 'uuid';
 import MessageBubble from "./MessageBubble.tsx";
 import AdaptiveCardForm from "./AdaptiveCardForm.tsx";
